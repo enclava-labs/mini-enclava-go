@@ -1,0 +1,21 @@
+# compiled binary
+/enclava
+
+# database files
+*.db
+*.db-shm
+*.db-wal
+
+# environment / secrets
+.env
+.env.local
+*.env.local
+
+# Node / Playwright
+node_modules/
+test-results/
+.playwright-cli/
+playwright-report/
+
+# review staging area
+to-delete/

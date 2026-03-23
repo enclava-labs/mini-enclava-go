@@ -1,0 +1,1 @@
+ALTER TABLE api_keys ADD COLUMN key_hash_algo TEXT NOT NULL DEFAULT 'sha256';
