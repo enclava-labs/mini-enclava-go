@@ -1,0 +1,16 @@
+.git
+.github
+.playwright-cli
+node_modules
+playwright-report
+test-results
+to-delete
+
+*.db
+*.db-shm
+*.db-wal
+enclava
+
+.env
+.env.*
+!.env.example

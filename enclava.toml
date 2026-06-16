@@ -1,0 +1,69 @@
+[app]
+name = "enclava-go"
+port = 8080
+command = [
+  "/bin/sh",
+  "-c",
+  "ENCLAVA_CONFIG_DIR=/state/app-data/.enclava/config ENCLAVA_REQUIRED_CONFIG_KEYS=ADMIN_EMAIL,ADMIN_PASSWORD,BOOTSTRAP_ENABLED,BOOTSTRAP_API_KEY,API_KEY_HASH_ALGO,API_KEY_PEPPER,INFERENCE_PROVIDER,TINFOIL_API_KEY,TINFOIL_ENCLAVE,TINFOIL_REPO exec /usr/local/bin/enclava-go-cap-entrypoint",
+]
+
+[storage]
+paths = ["/state/app-data"]
+size = "5Gi"
+tls_size = "2Gi"
+
+[unlock]
+mode = "password"
+
+[resources]
+cpu = "4"
+memory = "8Gi"
+
+[health]
+path = "/livez"
+interval = 30
+timeout = 10
+
+[[egress.allow]]
+host = "inference.tinfoil.sh"
+ports = [443]
+
+[[egress.allow]]
+host = "atc.tinfoil.sh"
+ports = [443]
+
+[[egress.allow]]
+host = "github-proxy.tinfoil.sh"
+ports = [443]
+
+[[egress.allow]]
+host = "kds-proxy.tinfoil.sh"
+ports = [443]
+
+[[egress.allow]]
+host = "tdx-proxy.tinfoil.sh"
+ports = [443]
+
+[[egress.allow]]
+host = "tuf-repo-cdn.sigstore.dev"
+ports = [443]
+
+[[egress.allow]]
+host = "rekor.sigstore.dev"
+ports = [443]
+
+[[egress.allow]]
+host = "log2025-1.rekor.sigstore.dev"
+ports = [443]
+
+[[egress.allow]]
+host = "fulcio.sigstore.dev"
+ports = [443]
+
+[[egress.allow]]
+host = "timestamp.sigstore.dev"
+ports = [443]
+
+[[egress.allow]]
+host = "ctfe.sigstore.dev"
+ports = [443]

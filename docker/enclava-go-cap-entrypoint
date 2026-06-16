@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+CONFIG_DIR="${ENCLAVA_CONFIG_DIR:-/state/app-data/.enclava/config}"
+REQUIRED_KEYS="${ENCLAVA_REQUIRED_CONFIG_KEYS:-}"
+APP_BIN="${ENCLAVA_APP_BIN:-/usr/local/bin/app}"
+
+load_config_dir() {
+	if [ ! -d "$CONFIG_DIR" ]; then
+		return 0
+	fi
+
+	for path in "$CONFIG_DIR"/*; do
+		[ -f "$path" ] || continue
+		key="$(basename "$path")"
+		case "$key" in
+			''|*[!A-Za-z0-9_]*)
+				echo "ignoring invalid config key file: $key" >&2
+				continue
+				;;
+		esac
+		value="$(cat "$path")"
+		export "$key=$value"
+	done
+}
+
+wait_for_required_keys() {
+	[ -n "$REQUIRED_KEYS" ] || return 0
+
+	for key in $(printf '%s' "$REQUIRED_KEYS" | tr ',' ' '); do
+		[ -n "$key" ] || continue
+		path="$CONFIG_DIR/$key"
+		while [ ! -s "$path" ]; do
+			echo "waiting for encrypted config key: $key" >&2
+			sleep 2
+		done
+	done
+}
+
+wait_for_required_keys
+load_config_dir
+
+export APP_HOST="${APP_HOST:-0.0.0.0}"
+export APP_PORT="${APP_PORT:-8080}"
+export DATABASE_URL="${DATABASE_URL:-/state/app-data/enclava.db}"
+export TRUST_PROXY_HEADERS="${TRUST_PROXY_HEADERS:-true}"
+
+db_dir="$(dirname "$DATABASE_URL")"
+if [ -n "$db_dir" ] && [ "$db_dir" != "." ]; then
+	mkdir -p "$db_dir" 2>/dev/null || true
+fi
+
+exec "$APP_BIN"
