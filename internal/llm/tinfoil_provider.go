@@ -53,7 +53,7 @@ func NewTinfoilProvider(
 	)
 	hasEnclave := strings.TrimSpace(enclave) != ""
 	hasRepo := strings.TrimSpace(repo) != ""
-	if !hasEnclave || !hasRepo {
+	if hasEnclave != hasRepo {
 		return nil, fmt.Errorf("both TINFOIL_ENCLAVE and TINFOIL_REPO must be set together")
 	}
 	if !verifyPerCall && verifyMaxAge <= 0 {
@@ -61,7 +61,11 @@ func NewTinfoilProvider(
 		log.Printf("warning: TINFOIL_VERIFY_MAX_AGE is 0 with TINFOIL_VERIFY_PER_CALL=false; defaulting to %v", verifyMaxAge)
 	}
 
-	tinfoilClient, err = tinfoil.NewClientWithParams(enclave, repo, opts...)
+	if hasEnclave {
+		tinfoilClient, err = tinfoil.NewClientWithParams(strings.TrimSpace(enclave), strings.TrimSpace(repo), opts...)
+	} else {
+		tinfoilClient, err = tinfoil.NewClient(opts...)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create tinfoil client: %w", err)
 	}

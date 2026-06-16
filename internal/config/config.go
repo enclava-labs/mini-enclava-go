@@ -143,11 +143,13 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("PRIVATEMODE_BASE_URL is required when INFERENCE_PROVIDER=privatemode")
 	}
 	if cfg.Provider == "tinfoil" {
-		if cfg.TinfoilAPIKey == "" {
+		if strings.TrimSpace(cfg.TinfoilAPIKey) == "" {
 			return Config{}, fmt.Errorf("TINFOIL_API_KEY is required when INFERENCE_PROVIDER=tinfoil")
 		}
-		if cfg.TinfoilEnclave == "" || cfg.TinfoilRepo == "" {
-			return Config{}, fmt.Errorf("TINFOIL_ENCLAVE and TINFOIL_REPO are required when INFERENCE_PROVIDER=tinfoil")
+		hasEnclave := strings.TrimSpace(cfg.TinfoilEnclave) != ""
+		hasRepo := strings.TrimSpace(cfg.TinfoilRepo) != ""
+		if hasEnclave != hasRepo {
+			return Config{}, fmt.Errorf("TINFOIL_ENCLAVE and TINFOIL_REPO must be set together")
 		}
 	}
 

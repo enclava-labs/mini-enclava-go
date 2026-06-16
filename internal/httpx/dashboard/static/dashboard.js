@@ -284,7 +284,7 @@
 
   // ── Initialize ────────────────────────────────────────────────────
 
-  document.body.addEventListener('htmx:beforeRequest', onBeforeDashboardRequest);
+  document.body.addEventListener('htmx:configRequest', onBeforeDashboardRequest);
   document.body.addEventListener('htmx:responseError', onDashboardError);
   document.body.addEventListener('htmx:afterRequest', onDashboardAfterRequest);
   document.body.addEventListener('htmx:afterSwap', function () {
