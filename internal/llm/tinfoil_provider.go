@@ -18,12 +18,21 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+var (
+	newTinfoilClient           = tinfoil.NewClient
+	newTinfoilClientWithParams = tinfoil.NewClientWithParams
+)
+
 type TinfoilProvider struct {
+	clientMu      sync.Mutex
 	client        *tinfoil.Client
 	apiKey        string
+	enclave       string
+	repo          string
 	baseURL       string
 	jsonClient    *http.Client
 	streamClient  *http.Client
+	timeout       time.Duration
 	verifyPerCall bool
 	verifyMaxAge  time.Duration
 	verifyGroup   singleflight.Group
@@ -45,12 +54,6 @@ func NewTinfoilProvider(
 		return nil, fmt.Errorf("TINFOIL_API_KEY is required for tinfoil provider")
 	}
 
-	opts := []option.RequestOption{option.WithAPIKey(apiKey)}
-
-	var (
-		tinfoilClient *tinfoil.Client
-		err           error
-	)
 	hasEnclave := strings.TrimSpace(enclave) != ""
 	hasRepo := strings.TrimSpace(repo) != ""
 	if hasEnclave != hasRepo {
@@ -61,46 +64,26 @@ func NewTinfoilProvider(
 		log.Printf("warning: TINFOIL_VERIFY_MAX_AGE is 0 with TINFOIL_VERIFY_PER_CALL=false; defaulting to %v", verifyMaxAge)
 	}
 
-	if hasEnclave {
-		tinfoilClient, err = tinfoil.NewClientWithParams(strings.TrimSpace(enclave), strings.TrimSpace(repo), opts...)
-	} else {
-		tinfoilClient, err = tinfoil.NewClient(opts...)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("create tinfoil client: %w", err)
-	}
-
-	httpClient := tinfoilClient.HTTPClient()
-	if timeout > 0 {
-		httpClient.Timeout = timeout
-	}
-
-	streamClient := *httpClient
-	// Streaming client has no timeout: long-running SSE streams must not be killed.
-	// Mitigation: Go's net/http cancels the request when the client disconnects (via r.Context()).
-	// Known limitation: if the upstream hangs without the client disconnecting, the goroutine leaks.
-	streamClient.Timeout = 0
-
 	provider := &TinfoilProvider{
-		client:        tinfoilClient,
 		apiKey:        apiKey,
-		baseURL:       fmt.Sprintf("https://%s/v1", tinfoilClient.Enclave()),
-		jsonClient:    httpClient,
-		streamClient:  &streamClient,
+		enclave:       strings.TrimSpace(enclave),
+		repo:          strings.TrimSpace(repo),
+		timeout:       timeout,
 		verifyPerCall: verifyPerCall,
 		verifyMaxAge:  verifyMaxAge,
 		status: AttestationStatus{
 			Enabled:  true,
 			Verified: false,
 			Provider: "tinfoil",
-			Enclave:  tinfoilClient.Enclave(),
-			Repo:     tinfoilClient.Repo(),
+			Enclave:  strings.TrimSpace(enclave),
+			Repo:     strings.TrimSpace(repo),
 		},
 	}
 
 	if verifyAtStart {
-		// Best-effort warm-up verification; startup gating handles strict retries.
-		_, _ = provider.VerifyAttestation(context.Background())
+		if _, err := provider.VerifyAttestation(context.Background()); err != nil {
+			return nil, err
+		}
 	}
 
 	return provider, nil
@@ -136,13 +119,21 @@ func (p *TinfoilProvider) VerifyAttestation(ctx context.Context) (AttestationSta
 }
 
 func (p *TinfoilProvider) verifyAttestationOnce() (AttestationStatus, error) {
-	groundTruth, err := p.client.Verify()
+	client, err := p.ensureClient(nil)
 	status := p.AttestationStatus()
 	status.Enabled = true
 	status.Provider = "tinfoil"
-	status.Enclave = p.client.Enclave()
-	status.Repo = p.client.Repo()
+	status.Enclave = p.enclave
+	status.Repo = p.repo
 
+	if err != nil {
+		status.Verified = false
+		status.LastError = err.Error()
+		p.setStatus(status)
+		return status, err
+	}
+
+	groundTruth, err := client.Verify()
 	if err != nil {
 		status.Verified = false
 		status.LastError = err.Error()
@@ -153,6 +144,8 @@ func (p *TinfoilProvider) verifyAttestationOnce() (AttestationStatus, error) {
 	status.Verified = true
 	status.LastError = ""
 	status.VerifiedAt = time.Now().UTC()
+	status.Enclave = client.Enclave()
+	status.Repo = client.Repo()
 	if groundTruth != nil {
 		status.Digest = groundTruth.Digest
 		status.CodeFingerprint = groundTruth.CodeFingerprint
@@ -210,6 +203,10 @@ func (p *TinfoilProvider) CreateChatCompletionStream(ctx context.Context, body [
 	if err := p.ensureVerified(ctx); err != nil {
 		return nil, err
 	}
+	_, streamClient, err := p.requestClients()
+	if err != nil {
+		return nil, err
+	}
 	requestURL := p.baseURL + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
 	if err != nil {
@@ -219,7 +216,7 @@ func (p *TinfoilProvider) CreateChatCompletionStream(ctx context.Context, body [
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 
-	resp, err := p.streamClient.Do(req)
+	resp, err := streamClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("upstream chat stream request failed: %w", err)
 	}
@@ -248,6 +245,10 @@ func (p *TinfoilProvider) ensureVerified(ctx context.Context) error {
 }
 
 func (p *TinfoilProvider) doJSON(ctx context.Context, method, path string, body []byte) ([]byte, error) {
+	jsonClient, _, err := p.requestClients()
+	if err != nil {
+		return nil, err
+	}
 	requestURL := p.baseURL + path
 	var reader io.Reader
 	if body != nil {
@@ -262,7 +263,7 @@ func (p *TinfoilProvider) doJSON(ctx context.Context, method, path string, body 
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := p.jsonClient.Do(req)
+	resp, err := jsonClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("upstream request failed: %w", err)
 	}
@@ -285,4 +286,62 @@ func (p *TinfoilProvider) setStatus(status AttestationStatus) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.status = status
+}
+
+func (p *TinfoilProvider) ensureClient(opts []option.RequestOption) (*tinfoil.Client, error) {
+	p.clientMu.Lock()
+	defer p.clientMu.Unlock()
+	if p.client != nil {
+		return p.client, nil
+	}
+	if opts == nil {
+		opts = []option.RequestOption{option.WithAPIKey(p.apiKey)}
+	}
+
+	var (
+		tinfoilClient *tinfoil.Client
+		err           error
+	)
+	if p.enclave != "" {
+		tinfoilClient, err = newTinfoilClientWithParams(p.enclave, p.repo, opts...)
+	} else {
+		tinfoilClient, err = newTinfoilClient(opts...)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("create tinfoil client: %w", err)
+	}
+
+	httpClient := tinfoilClient.HTTPClient()
+	if p.timeout > 0 {
+		httpClient.Timeout = p.timeout
+	}
+
+	streamClient := *httpClient
+	// Streaming client has no timeout: long-running SSE streams must not be killed.
+	// Mitigation: Go's net/http cancels the request when the client disconnects (via r.Context()).
+	// Known limitation: if the upstream hangs without the client disconnecting, the goroutine leaks.
+	streamClient.Timeout = 0
+
+	p.client = tinfoilClient
+	p.enclave = tinfoilClient.Enclave()
+	p.repo = tinfoilClient.Repo()
+	p.baseURL = fmt.Sprintf("https://%s/v1", tinfoilClient.Enclave())
+	p.jsonClient = httpClient
+	p.streamClient = &streamClient
+
+	status := p.AttestationStatus()
+	status.Enclave = p.enclave
+	status.Repo = p.repo
+	p.setStatus(status)
+	return p.client, nil
+}
+
+func (p *TinfoilProvider) requestClients() (*http.Client, *http.Client, error) {
+	if _, err := p.ensureClient(nil); err != nil {
+		return nil, nil, err
+	}
+
+	p.clientMu.Lock()
+	defer p.clientMu.Unlock()
+	return p.jsonClient, p.streamClient, nil
 }
