@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-CONFIG_DIR="${ENCLAVA_CONFIG_DIR:-/state/app-data/.enclava/config}"
+CONFIG_DIR="${ENCLAVA_CONFIG_DIR:-/state/.enclava/config}"
 REQUIRED_KEYS="${ENCLAVA_REQUIRED_CONFIG_KEYS:-}"
 APP_BIN="${ENCLAVA_APP_BIN:-/usr/local/bin/app}"
 APP_RESTART_LIMIT="${ENCLAVA_APP_RESTART_LIMIT:-0}"
