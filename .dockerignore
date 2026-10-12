@@ -1,0 +1,12 @@
+.git
+node_modules
+enclava
+enclava.db
+*.db
+*.db-shm
+*.db-wal
+test-results
+playwright-report
+.env
+.env.*
+!.env.example

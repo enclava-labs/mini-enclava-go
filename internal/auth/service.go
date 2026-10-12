@@ -29,6 +29,8 @@ type APIKeyRecord struct {
 	Scopes                  []string
 	AllowedModels           []string
 	AllowedExtractTemplates []string
+	AllowedChatbots         []string
+	AllowedAgents           []string
 	AllowedEndpoints        []string
 	AllowedIPs              []string
 	RateLimitPerMinute      *int
@@ -120,6 +122,8 @@ func (s *Service) Authenticate(ctx context.Context, plaintext string) (Principal
 			Scopes:                  listToSet(candidate.Scopes),
 			AllowedModels:           listToSet(candidate.AllowedModels),
 			AllowedExtractTemplates: listToSet(candidate.AllowedExtractTemplates),
+			AllowedChatbots:         listToSet(candidate.AllowedChatbots),
+			AllowedAgents:           listToSet(candidate.AllowedAgents),
 			AllowedEndpoints:        listToSet(candidate.AllowedEndpoints),
 			AllowedIPs:              listToSet(candidate.AllowedIPs),
 			RateLimitPerMinute:      candidate.RateLimitPerMinute,

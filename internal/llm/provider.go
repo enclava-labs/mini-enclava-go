@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"io"
+	"net/http"
 	"time"
 )
 
@@ -28,6 +29,29 @@ type Provider interface {
 	CreateChatCompletion(ctx context.Context, body []byte) ([]byte, error)
 	CreateChatCompletionStream(ctx context.Context, body []byte) (io.ReadCloser, error)
 	CreateEmbeddings(ctx context.Context, body []byte) ([]byte, error)
+}
+
+type ResponsesProvider interface {
+	DoResponsesRequest(ctx context.Context, method, path string, body []byte) ([]byte, error)
+	DoResponsesStream(ctx context.Context, method, path string, body []byte) (io.ReadCloser, error)
+}
+
+type PassthroughResponse struct {
+	StatusCode int
+	Header     http.Header
+	Body       io.ReadCloser
+}
+
+type PassthroughProvider interface {
+	DoPassthroughRequest(ctx context.Context, method, path string, body []byte, headers http.Header) (PassthroughResponse, error)
+}
+
+type HealthProvider interface {
+	Health(ctx context.Context) error
+}
+
+type ModelCacheInvalidator interface {
+	InvalidateModelCache()
 }
 
 type AttestationStatus struct {

@@ -35,6 +35,9 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	if err := sqldb.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
+	if _, err := sqldb.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
+		return nil, fmt.Errorf("enable sqlite foreign keys: %w", err)
+	}
 
 	db := &DB{SQL: sqldb}
 	if err := db.ApplyMigrations(ctx); err != nil {

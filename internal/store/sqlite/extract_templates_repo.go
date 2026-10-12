@@ -16,7 +16,7 @@ func NewExtractTemplatesRepo(db *sql.DB) *ExtractTemplatesRepo {
 
 func (r *ExtractTemplatesRepo) List(ctx context.Context) ([]ExtractTemplate, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, description, system_prompt, user_prompt, context_schema, model, is_default, is_active, created_at, updated_at
+		SELECT id, name, description, system_prompt, user_prompt, context_schema, output_schema, model, is_default, is_active, created_at, updated_at
 		FROM extract_templates
 		ORDER BY id ASC
 	`)
@@ -43,7 +43,7 @@ func (r *ExtractTemplatesRepo) List(ctx context.Context) ([]ExtractTemplate, err
 
 func (r *ExtractTemplatesRepo) GetByID(ctx context.Context, id string) (ExtractTemplate, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT id, name, description, system_prompt, user_prompt, context_schema, model, is_default, is_active, created_at, updated_at
+		SELECT id, name, description, system_prompt, user_prompt, context_schema, output_schema, model, is_default, is_active, created_at, updated_at
 		FROM extract_templates
 		WHERE id = ?
 	`, id)
@@ -54,24 +54,32 @@ func (r *ExtractTemplatesRepo) Upsert(ctx context.Context, t ExtractTemplate) er
 	if t.ContextSchema == nil {
 		t.ContextSchema = map[string]any{}
 	}
+	if t.OutputSchema == nil {
+		t.OutputSchema = map[string]any{}
+	}
 	schemaJSON, err := marshalJSON(t.ContextSchema)
 	if err != nil {
 		return fmt.Errorf("marshal context_schema: %w", err)
 	}
+	outputSchemaJSON, err := marshalJSON(t.OutputSchema)
+	if err != nil {
+		return fmt.Errorf("marshal output_schema: %w", err)
+	}
 	_, err = r.db.ExecContext(ctx, `
-		INSERT INTO extract_templates(id, name, description, system_prompt, user_prompt, context_schema, model, is_default, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+		INSERT INTO extract_templates(id, name, description, system_prompt, user_prompt, context_schema, output_schema, model, is_default, is_active, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			description = excluded.description,
 			system_prompt = excluded.system_prompt,
 			user_prompt = excluded.user_prompt,
 			context_schema = excluded.context_schema,
+			output_schema = excluded.output_schema,
 			model = excluded.model,
 			is_default = excluded.is_default,
 			is_active = excluded.is_active,
 			updated_at = datetime('now')
-	`, t.ID, t.Name, t.Description, t.SystemPrompt, t.UserPrompt, schemaJSON, nullableString(t.Model), boolToInt(t.IsDefault), boolToInt(t.IsActive))
+	`, t.ID, t.Name, t.Description, t.SystemPrompt, t.UserPrompt, schemaJSON, outputSchemaJSON, nullableString(t.Model), boolToInt(t.IsDefault), boolToInt(t.IsActive))
 	if err != nil {
 		return fmt.Errorf("upsert template: %w", err)
 	}
@@ -103,24 +111,32 @@ func (r *ExtractTemplatesRepo) ReplaceDefaults(ctx context.Context, templates []
 		if t.ContextSchema == nil {
 			t.ContextSchema = map[string]any{}
 		}
+		if t.OutputSchema == nil {
+			t.OutputSchema = map[string]any{}
+		}
 		schemaJSON, err := marshalJSON(t.ContextSchema)
 		if err != nil {
 			return fmt.Errorf("marshal context_schema for %s: %w", t.ID, err)
 		}
+		outputSchemaJSON, err := marshalJSON(t.OutputSchema)
+		if err != nil {
+			return fmt.Errorf("marshal output_schema for %s: %w", t.ID, err)
+		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO extract_templates(id, name, description, system_prompt, user_prompt, context_schema, model, is_default, is_active, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+			INSERT INTO extract_templates(id, name, description, system_prompt, user_prompt, context_schema, output_schema, model, is_default, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
 			ON CONFLICT(id) DO UPDATE SET
 				name = excluded.name,
 				description = excluded.description,
 				system_prompt = excluded.system_prompt,
 				user_prompt = excluded.user_prompt,
 				context_schema = excluded.context_schema,
+				output_schema = excluded.output_schema,
 				model = excluded.model,
 				is_default = excluded.is_default,
 				is_active = excluded.is_active,
 				updated_at = datetime('now')
-		`, t.ID, t.Name, t.Description, t.SystemPrompt, t.UserPrompt, schemaJSON, nullableString(t.Model), boolToInt(t.IsDefault), boolToInt(t.IsActive)); err != nil {
+		`, t.ID, t.Name, t.Description, t.SystemPrompt, t.UserPrompt, schemaJSON, outputSchemaJSON, nullableString(t.Model), boolToInt(t.IsDefault), boolToInt(t.IsActive)); err != nil {
 			return fmt.Errorf("insert default template %s: %w", t.ID, err)
 		}
 	}
@@ -156,6 +172,7 @@ func scanTemplate(s scanner) (ExtractTemplate, error) {
 	var t ExtractTemplate
 	var desc, model sql.NullString
 	var contextRaw string
+	var outputRaw string
 	var isDefault, isActive int
 	var createdAtRaw, updatedAtRaw string
 	if err := s.Scan(
@@ -165,6 +182,7 @@ func scanTemplate(s scanner) (ExtractTemplate, error) {
 		&t.SystemPrompt,
 		&t.UserPrompt,
 		&contextRaw,
+		&outputRaw,
 		&model,
 		&isDefault,
 		&isActive,
@@ -182,6 +200,7 @@ func scanTemplate(s scanner) (ExtractTemplate, error) {
 	t.IsDefault = isDefault == 1
 	t.IsActive = isActive == 1
 	t.ContextSchema = unmarshalMap(contextRaw)
+	t.OutputSchema = unmarshalMap(outputRaw)
 	createdAt, err := parseDBTime(createdAtRaw)
 	if err != nil {
 		return ExtractTemplate{}, fmt.Errorf("parse template created_at: %w", err)

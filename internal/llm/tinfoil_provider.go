@@ -18,6 +18,11 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const (
+	defaultTinfoilEnclave = "inference.tinfoil.sh"
+	defaultTinfoilRepo    = "tinfoilsh/confidential-model-router"
+)
+
 type TinfoilProvider struct {
 	client        *tinfoil.Client
 	apiKey        string
@@ -53,8 +58,12 @@ func NewTinfoilProvider(
 	)
 	hasEnclave := strings.TrimSpace(enclave) != ""
 	hasRepo := strings.TrimSpace(repo) != ""
-	if !hasEnclave || !hasRepo {
+	if hasEnclave != hasRepo {
 		return nil, fmt.Errorf("both TINFOIL_ENCLAVE and TINFOIL_REPO must be set together")
+	}
+	if !hasEnclave {
+		enclave = defaultTinfoilEnclave
+		repo = defaultTinfoilRepo
 	}
 	if !verifyPerCall && verifyMaxAge <= 0 {
 		verifyMaxAge = 10 * time.Minute
@@ -170,7 +179,7 @@ func (p *TinfoilProvider) ListModels(ctx context.Context) (ModelsResponse, error
 	if err := json.Unmarshal(body, &out); err != nil {
 		return ModelsResponse{}, fmt.Errorf("decode models response: %w", err)
 	}
-	return out, nil
+	return NormalizeModels(out, "tinfoil"), nil
 }
 
 func (p *TinfoilProvider) GetModel(ctx context.Context, modelID string) (Model, error) {
@@ -185,7 +194,12 @@ func (p *TinfoilProvider) GetModel(ctx context.Context, modelID string) (Model, 
 	if err := json.Unmarshal(body, &out); err != nil {
 		return Model{}, fmt.Errorf("decode model response: %w", err)
 	}
-	return out, nil
+	return NormalizeModel(out, "tinfoil"), nil
+}
+
+func (p *TinfoilProvider) Health(ctx context.Context) error {
+	_, err := p.ListModels(ctx)
+	return err
 }
 
 func (p *TinfoilProvider) CreateChatCompletion(ctx context.Context, body []byte) ([]byte, error) {
@@ -206,8 +220,37 @@ func (p *TinfoilProvider) CreateChatCompletionStream(ctx context.Context, body [
 	if err := p.ensureVerified(ctx); err != nil {
 		return nil, err
 	}
-	requestURL := p.baseURL + "/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(body))
+	return p.doStream(ctx, http.MethodPost, "/chat/completions", body)
+}
+
+func (p *TinfoilProvider) DoResponsesRequest(ctx context.Context, method, path string, body []byte) ([]byte, error) {
+	if err := p.ensureVerified(ctx); err != nil {
+		return nil, err
+	}
+	return p.doJSON(ctx, method, path, body)
+}
+
+func (p *TinfoilProvider) DoResponsesStream(ctx context.Context, method, path string, body []byte) (io.ReadCloser, error) {
+	if err := p.ensureVerified(ctx); err != nil {
+		return nil, err
+	}
+	return p.doStream(ctx, method, path, body)
+}
+
+func (p *TinfoilProvider) DoPassthroughRequest(ctx context.Context, method, path string, body []byte, headers http.Header) (PassthroughResponse, error) {
+	if err := p.ensureVerified(ctx); err != nil {
+		return PassthroughResponse{}, err
+	}
+	client := p.jsonClient
+	if passthroughStreamClientSelected(path, headers, body) {
+		client = p.streamClient
+	}
+	return doPassthroughHTTP(ctx, client, p.baseURL, p.apiKey, method, path, body, headers)
+}
+
+func (p *TinfoilProvider) doStream(ctx context.Context, method, path string, body []byte) (io.ReadCloser, error) {
+	requestURL := p.baseURL + path
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("build stream request: %w", err)
 	}

@@ -1,0 +1,12 @@
+package prompts
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+)
+
+func newID(prefix string) string {
+	buf := make([]byte, 12)
+	_, _ = rand.Read(buf)
+	return prefix + "_" + base64.RawURLEncoding.EncodeToString(buf)
+}

@@ -8,6 +8,8 @@ type Principal struct {
 	Scopes                  map[string]struct{}
 	AllowedModels           map[string]struct{}
 	AllowedExtractTemplates map[string]struct{}
+	AllowedChatbots         map[string]struct{}
+	AllowedAgents           map[string]struct{}
 	AllowedEndpoints        map[string]struct{}
 	AllowedIPs              map[string]struct{}
 	RateLimitPerMinute      *int
@@ -55,4 +57,34 @@ func ExtractTemplateAllowed(p Principal, templateID string) bool {
 	}
 	_, ok := p.AllowedExtractTemplates[templateID]
 	return ok
+}
+
+func ChatbotAllowed(p Principal, chatbotIDs ...string) bool {
+	if len(p.AllowedChatbots) == 0 {
+		return true
+	}
+	if _, ok := p.AllowedChatbots["*"]; ok {
+		return true
+	}
+	for _, id := range chatbotIDs {
+		if _, ok := p.AllowedChatbots[id]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func AgentAllowed(p Principal, agentIDs ...string) bool {
+	if len(p.AllowedAgents) == 0 {
+		return true
+	}
+	if _, ok := p.AllowedAgents["*"]; ok {
+		return true
+	}
+	for _, id := range agentIDs {
+		if _, ok := p.AllowedAgents[id]; ok {
+			return true
+		}
+	}
+	return false
 }

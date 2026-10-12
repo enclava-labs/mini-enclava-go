@@ -10,35 +10,44 @@ import (
 )
 
 type Config struct {
-	Host                  string
-	Port                  int
-	DatabaseURL           string
-	ReadTimeout           time.Duration
-	WriteTimeout          time.Duration
-	IdleTimeout           time.Duration
-	ReadHeaderTimeout     time.Duration
-	MaxUploadSizeMB       int64
-	Provider              string
-	UpstreamOpenAIBaseURL string
-	UpstreamOpenAIAPIKey  string
-	UpstreamTimeout       time.Duration
-	ProviderProbeInterval time.Duration
-	ProviderProbeTimeout  time.Duration
-	TinfoilAPIKey         string
-	TinfoilEnclave        string
-	TinfoilRepo           string
-	TinfoilVerifyAtStart  bool
-	TinfoilVerifyPerCall  bool
-	TinfoilVerifyMaxAge   time.Duration
-	APIKeyHashAlgo        string
-	APIKeyPepper          string
-	APIKeyPrefix          string
-	AdminEmail            string
-	AdminPassword         string
-	TrustProxyHeaders     bool
-	BootstrapAPIKey       string
-	BootstrapEnabled      bool
-	BootstrapMinLength    int
+	Host                    string
+	Port                    int
+	DatabaseURL             string
+	ReadTimeout             time.Duration
+	WriteTimeout            time.Duration
+	IdleTimeout             time.Duration
+	ReadHeaderTimeout       time.Duration
+	MaxUploadSizeMB         int64
+	Provider                string
+	UpstreamOpenAIBaseURL   string
+	UpstreamOpenAIAPIKey    string
+	OpenAICompatibleBaseURL string
+	OpenAICompatibleAPIKey  string
+	RedPillBaseURL          string
+	RedPillAPIKey           string
+	UpstreamTimeout         time.Duration
+	ProviderProbeInterval   time.Duration
+	ProviderProbeTimeout    time.Duration
+	ProviderModelCacheTTL   time.Duration
+	QdrantURL               string
+	DefaultEmbeddingModel   string
+	ConnectorSyncInterval   time.Duration
+	TinfoilAPIKey           string
+	TinfoilEnclave          string
+	TinfoilRepo             string
+	TinfoilVerifyAtStart    bool
+	TinfoilVerifyPerCall    bool
+	TinfoilVerifyMaxAge     time.Duration
+	APIKeyHashAlgo          string
+	APIKeyPepper            string
+	APIKeyPrefix            string
+	CORSAllowedOrigins      []string
+	AdminEmail              string
+	AdminPassword           string
+	TrustProxyHeaders       bool
+	BootstrapAPIKey         string
+	BootstrapEnabled        bool
+	BootstrapMinLength      int
 }
 
 func Load() (Config, error) {
@@ -51,31 +60,40 @@ func Load() (Config, error) {
 		DatabaseURL: getEnv("DATABASE_URL", "./enclava.db"),
 		ReadTimeout: getEnvDuration("HTTP_READ_TIMEOUT", 30*time.Second),
 		// Streaming (SSE) can exceed fixed write timeouts; prefer disabling unless you know you don't need streaming.
-		WriteTimeout:          getEnvDuration("HTTP_WRITE_TIMEOUT", 0),
-		IdleTimeout:           getEnvDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
-		ReadHeaderTimeout:     getEnvDuration("HTTP_READ_HEADER_TIMEOUT", 10*time.Second),
-		MaxUploadSizeMB:       int64(getEnvInt("MAX_UPLOAD_SIZE_MB", 15)),
-		Provider:              strings.ToLower(getEnv("INFERENCE_PROVIDER", "privatemode")),
-		UpstreamOpenAIBaseURL: privatemodeBaseURL,
-		UpstreamOpenAIAPIKey:  privatemodeAPIKey,
-		UpstreamTimeout:       getEnvDuration("PRIVATEMODE_TIMEOUT", 120*time.Second),
-		ProviderProbeInterval: getEnvDuration("PROVIDER_PROBE_INTERVAL", 5*time.Second),
-		ProviderProbeTimeout:  getEnvDuration("PROVIDER_PROBE_TIMEOUT", 10*time.Second),
-		TinfoilAPIKey:         getEnv("TINFOIL_API_KEY", ""),
-		TinfoilEnclave:        getEnv("TINFOIL_ENCLAVE", ""),
-		TinfoilRepo:           getEnv("TINFOIL_REPO", ""),
-		TinfoilVerifyAtStart:  getEnvBool("TINFOIL_VERIFY_AT_START", true),
-		TinfoilVerifyPerCall:  getEnvBool("TINFOIL_VERIFY_PER_CALL", false),
-		TinfoilVerifyMaxAge:   getEnvDuration("TINFOIL_VERIFY_MAX_AGE", 10*time.Minute),
-		APIKeyHashAlgo:        getEnv("API_KEY_HASH_ALGO", "sha256"),
-		APIKeyPepper:          getEnv("API_KEY_PEPPER", ""),
-		APIKeyPrefix:          getEnv("API_KEY_PREFIX", "enc_"),
-		AdminEmail:            getEnv("ADMIN_EMAIL", ""),
-		AdminPassword:         getEnv("ADMIN_PASSWORD", ""),
-		TrustProxyHeaders:     getEnvBool("TRUST_PROXY_HEADERS", false),
-		BootstrapAPIKey:       getEnv("BOOTSTRAP_API_KEY", ""),
-		BootstrapEnabled:      getEnvBool("BOOTSTRAP_ENABLED", false),
-		BootstrapMinLength:    getEnvInt("BOOTSTRAP_API_KEY_MIN_LENGTH", 48),
+		WriteTimeout:            getEnvDuration("HTTP_WRITE_TIMEOUT", 0),
+		IdleTimeout:             getEnvDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
+		ReadHeaderTimeout:       getEnvDuration("HTTP_READ_HEADER_TIMEOUT", 10*time.Second),
+		MaxUploadSizeMB:         int64(getEnvInt("MAX_UPLOAD_SIZE_MB", 15)),
+		Provider:                strings.ToLower(strings.TrimSpace(getEnv("INFERENCE_PROVIDER", "privatemode"))),
+		UpstreamOpenAIBaseURL:   privatemodeBaseURL,
+		UpstreamOpenAIAPIKey:    privatemodeAPIKey,
+		OpenAICompatibleBaseURL: strings.TrimSpace(getEnv("OPENAI_COMPATIBLE_BASE_URL", privatemodeBaseURL)),
+		OpenAICompatibleAPIKey:  strings.TrimSpace(getEnv("OPENAI_COMPATIBLE_API_KEY", privatemodeAPIKey)),
+		RedPillBaseURL:          strings.TrimSpace(getEnv("REDPILL_BASE_URL", "")),
+		RedPillAPIKey:           strings.TrimSpace(getEnv("REDPILL_API_KEY", "")),
+		UpstreamTimeout:         getEnvDuration("PRIVATEMODE_TIMEOUT", 120*time.Second),
+		ProviderProbeInterval:   getEnvDuration("PROVIDER_PROBE_INTERVAL", 5*time.Second),
+		ProviderProbeTimeout:    getEnvDuration("PROVIDER_PROBE_TIMEOUT", 10*time.Second),
+		ProviderModelCacheTTL:   getEnvDuration("PROVIDER_MODEL_CACHE_TTL", 5*time.Minute),
+		QdrantURL:               strings.TrimSpace(getEnv("QDRANT_URL", "http://localhost:6333")),
+		DefaultEmbeddingModel:   strings.TrimSpace(getEnv("DEFAULT_EMBEDDING_MODEL", "nomic-embed-text")),
+		ConnectorSyncInterval:   getEnvDuration("CONNECTOR_SYNC_INTERVAL", 0),
+		TinfoilAPIKey:           getEnv("TINFOIL_API_KEY", ""),
+		TinfoilEnclave:          getEnv("TINFOIL_ENCLAVE", ""),
+		TinfoilRepo:             getEnv("TINFOIL_REPO", ""),
+		TinfoilVerifyAtStart:    getEnvBool("TINFOIL_VERIFY_AT_START", true),
+		TinfoilVerifyPerCall:    getEnvBool("TINFOIL_VERIFY_PER_CALL", false),
+		TinfoilVerifyMaxAge:     getEnvDuration("TINFOIL_VERIFY_MAX_AGE", 10*time.Minute),
+		APIKeyHashAlgo:          getEnv("API_KEY_HASH_ALGO", "sha256"),
+		APIKeyPepper:            getEnv("API_KEY_PEPPER", ""),
+		APIKeyPrefix:            getEnv("API_KEY_PREFIX", "enc_"),
+		CORSAllowedOrigins:      getEnvList("CORS_ALLOWED_ORIGINS"),
+		AdminEmail:              getEnv("ADMIN_EMAIL", ""),
+		AdminPassword:           getEnv("ADMIN_PASSWORD", ""),
+		TrustProxyHeaders:       getEnvBool("TRUST_PROXY_HEADERS", false),
+		BootstrapAPIKey:         getEnv("BOOTSTRAP_API_KEY", ""),
+		BootstrapEnabled:        getEnvBool("BOOTSTRAP_ENABLED", false),
+		BootstrapMinLength:      getEnvInt("BOOTSTRAP_API_KEY_MIN_LENGTH", 48),
 	}
 	if cfg.Provider == "openai" {
 		cfg.Provider = "privatemode"
@@ -91,6 +109,18 @@ func Load() (Config, error) {
 	}
 	if cfg.ProviderProbeTimeout <= 0 {
 		return Config{}, fmt.Errorf("PROVIDER_PROBE_TIMEOUT must be > 0")
+	}
+	if cfg.ProviderModelCacheTTL < 0 {
+		return Config{}, fmt.Errorf("PROVIDER_MODEL_CACHE_TTL must be >= 0")
+	}
+	if cfg.QdrantURL == "" {
+		return Config{}, fmt.Errorf("QDRANT_URL must be non-empty")
+	}
+	if cfg.DefaultEmbeddingModel == "" {
+		return Config{}, fmt.Errorf("DEFAULT_EMBEDDING_MODEL must be non-empty")
+	}
+	if cfg.ConnectorSyncInterval < 0 {
+		return Config{}, fmt.Errorf("CONNECTOR_SYNC_INTERVAL must be >= 0")
 	}
 	switch cfg.APIKeyHashAlgo {
 	case "sha256":
@@ -133,8 +163,8 @@ func Load() (Config, error) {
 	if cfg.BootstrapMinLength < 24 && cfg.BootstrapAPIKey != "" {
 		return Config{}, fmt.Errorf("BOOTSTRAP_API_KEY_MIN_LENGTH must be at least 24")
 	}
-	if cfg.Provider != "privatemode" && cfg.Provider != "tinfoil" {
-		return Config{}, fmt.Errorf("INFERENCE_PROVIDER must be one of: privatemode, tinfoil")
+	if cfg.Provider != "privatemode" && cfg.Provider != "tinfoil" && cfg.Provider != "openai_compatible" && cfg.Provider != "redpill" {
+		return Config{}, fmt.Errorf("INFERENCE_PROVIDER must be one of: privatemode, tinfoil, openai_compatible, redpill")
 	}
 	if cfg.Provider == "privatemode" && strings.TrimSpace(cfg.UpstreamOpenAIAPIKey) == "" {
 		return Config{}, fmt.Errorf("PRIVATEMODE_API_KEY is required when INFERENCE_PROVIDER=privatemode")
@@ -142,12 +172,24 @@ func Load() (Config, error) {
 	if cfg.Provider == "privatemode" && strings.TrimSpace(cfg.UpstreamOpenAIBaseURL) == "" {
 		return Config{}, fmt.Errorf("PRIVATEMODE_BASE_URL is required when INFERENCE_PROVIDER=privatemode")
 	}
+	if cfg.Provider == "openai_compatible" && strings.TrimSpace(cfg.OpenAICompatibleAPIKey) == "" {
+		return Config{}, fmt.Errorf("OPENAI_COMPATIBLE_API_KEY is required when INFERENCE_PROVIDER=openai_compatible")
+	}
+	if cfg.Provider == "openai_compatible" && strings.TrimSpace(cfg.OpenAICompatibleBaseURL) == "" {
+		return Config{}, fmt.Errorf("OPENAI_COMPATIBLE_BASE_URL is required when INFERENCE_PROVIDER=openai_compatible")
+	}
+	if cfg.Provider == "redpill" && strings.TrimSpace(cfg.RedPillAPIKey) == "" {
+		return Config{}, fmt.Errorf("REDPILL_API_KEY is required when INFERENCE_PROVIDER=redpill")
+	}
+	if cfg.Provider == "redpill" && strings.TrimSpace(cfg.RedPillBaseURL) == "" {
+		return Config{}, fmt.Errorf("REDPILL_BASE_URL is required when INFERENCE_PROVIDER=redpill")
+	}
 	if cfg.Provider == "tinfoil" {
 		if cfg.TinfoilAPIKey == "" {
 			return Config{}, fmt.Errorf("TINFOIL_API_KEY is required when INFERENCE_PROVIDER=tinfoil")
 		}
-		if cfg.TinfoilEnclave == "" || cfg.TinfoilRepo == "" {
-			return Config{}, fmt.Errorf("TINFOIL_ENCLAVE and TINFOIL_REPO are required when INFERENCE_PROVIDER=tinfoil")
+		if (cfg.TinfoilEnclave == "") != (cfg.TinfoilRepo == "") {
+			return Config{}, fmt.Errorf("TINFOIL_ENCLAVE and TINFOIL_REPO must be set together when either is set")
 		}
 	}
 
@@ -193,6 +235,23 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+func getEnvList(key string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	return out
 }
 
 func validateBootstrapAPIKey(value string, minLength int) error {

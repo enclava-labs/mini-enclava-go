@@ -13,24 +13,38 @@ import (
 	"time"
 
 	"enclava-go/internal/auth"
+	"enclava-go/internal/chatbot"
+	"enclava-go/internal/connectors"
 	"enclava-go/internal/extract"
 	"enclava-go/internal/llm"
+	"enclava-go/internal/prompts"
+	"enclava-go/internal/rag"
 	"enclava-go/internal/store/sqlite"
 )
 
 type App struct {
 	authSvc          *auth.Service
 	provider         llm.Provider
+	providerID       string
 	prober           *llm.Prober
 	keysRepo         *sqlite.APIKeysRepo
 	extractJobs      *sqlite.ExtractJobsRepo
 	extractTemplates *sqlite.ExtractTemplatesRepo
 	extractSettings  *sqlite.ExtractSettingsRepo
 	extractSvc       *extract.Service
+	ragSvc           *rag.Service
+	promptSvc        *prompts.Service
+	chatbotSvc       *chatbot.Service
+	connectorSvc     *connectors.Service
 	usageRepo        *sqlite.UsageRepo
+	pricingRepo      *sqlite.PricingRepo
+	budgetsRepo      *sqlite.BudgetsRepo
+	billingAuditRepo *sqlite.BillingAuditRepo
+	providersRepo    *sqlite.ProvidersRepo
 	apiKeyAlgo       string
 	apiKeyPepper     string
 	apiKeyPrefix     string
+	corsOrigins      []string
 	adminEmail       string
 	adminPassword    string
 	maxUploadMB      int64
@@ -56,16 +70,26 @@ type rateLimitCheck struct {
 func NewApp(
 	authSvc *auth.Service,
 	provider llm.Provider,
+	providerID string,
 	prober *llm.Prober,
 	keysRepo *sqlite.APIKeysRepo,
 	extractJobs *sqlite.ExtractJobsRepo,
 	extractTemplates *sqlite.ExtractTemplatesRepo,
 	extractSettings *sqlite.ExtractSettingsRepo,
 	extractSvc *extract.Service,
+	ragSvc *rag.Service,
+	promptSvc *prompts.Service,
+	chatbotSvc *chatbot.Service,
+	connectorSvc *connectors.Service,
 	usageRepo *sqlite.UsageRepo,
+	pricingRepo *sqlite.PricingRepo,
+	budgetsRepo *sqlite.BudgetsRepo,
+	billingAuditRepo *sqlite.BillingAuditRepo,
+	providersRepo *sqlite.ProvidersRepo,
 	apiKeyAlgo string,
 	apiKeyPepper string,
 	apiKeyPrefix string,
+	corsOrigins []string,
 	adminEmail string,
 	adminPassword string,
 	maxUploadMB int64,
@@ -74,16 +98,26 @@ func NewApp(
 	a := &App{
 		authSvc:          authSvc,
 		provider:         provider,
+		providerID:       providerID,
 		prober:           prober,
 		keysRepo:         keysRepo,
 		extractJobs:      extractJobs,
 		extractTemplates: extractTemplates,
 		extractSettings:  extractSettings,
 		extractSvc:       extractSvc,
+		ragSvc:           ragSvc,
+		promptSvc:        promptSvc,
+		chatbotSvc:       chatbotSvc,
+		connectorSvc:     connectorSvc,
 		usageRepo:        usageRepo,
+		pricingRepo:      pricingRepo,
+		budgetsRepo:      budgetsRepo,
+		billingAuditRepo: billingAuditRepo,
+		providersRepo:    providersRepo,
 		apiKeyAlgo:       apiKeyAlgo,
 		apiKeyPepper:     apiKeyPepper,
 		apiKeyPrefix:     apiKeyPrefix,
+		corsOrigins:      corsOrigins,
 		adminEmail:       strings.TrimSpace(adminEmail),
 		adminPassword:    adminPassword,
 		maxUploadMB:      maxUploadMB,
@@ -97,7 +131,14 @@ func NewApp(
 }
 
 func (a *App) Handler() http.Handler {
-	return recoverMiddleware(a.mux)
+	var h http.Handler = a.mux
+	h = http.MaxBytesHandler(h, a.maxRequestBodyBytes())
+	h = recoverMiddleware(h)
+	h = a.corsMiddleware(h)
+	h = secureHeadersMiddleware(h)
+	h = a.accessLogMiddleware(h)
+	h = requestIDMiddleware(h)
+	return h
 }
 
 func (a *App) Mux() *http.ServeMux {
@@ -110,29 +151,70 @@ func (a *App) Authenticated(scope string, next func(http.ResponseWriter, *http.R
 }
 
 func (a *App) registerBaseRoutes() {
+	a.mux.HandleFunc("/", a.handleRoot)
 	a.mux.HandleFunc("/health", a.handleHealth)
 	a.mux.HandleFunc("/livez", a.handleLivez)
 	a.mux.HandleFunc("/readyz", a.handleReadyz)
 
 	a.mux.HandleFunc("/api/v1/models", a.authenticated("models.list", a.handleModels))
+	a.mux.HandleFunc("/api/v1/models/cache/invalidate", a.authenticated("models.list", a.handleModelsCacheInvalidate))
 	a.mux.HandleFunc("/api/v1/models/", a.authenticated("models.list", a.handleModelByID))
 	a.mux.HandleFunc("/api/v1/chat/completions", a.authenticated("chat.completions", a.handleChatCompletions))
 	a.mux.HandleFunc("/api/v1/embeddings", a.authenticated("embeddings.create", a.handleEmbeddings))
+	a.mux.HandleFunc("/api/v1/responses", a.authenticated("responses", a.handleResponses))
+	a.mux.HandleFunc("/api/v1/responses/", a.authenticated("responses", a.handleResponses))
+	a.mux.HandleFunc("/v1/models", a.authenticated("models.list", a.handleModels))
+	a.mux.HandleFunc("/v1/models/", a.authenticated("models.list", a.handleModelByID))
+	a.mux.HandleFunc("/v1/chat/completions", a.authenticated("chat.completions", a.handleChatCompletions))
+	a.mux.HandleFunc("/v1/embeddings", a.authenticated("embeddings.create", a.handleEmbeddings))
+	a.mux.HandleFunc("/v1/responses", a.authenticated("responses", a.handleResponses))
+	a.mux.HandleFunc("/v1/responses/", a.authenticated("responses", a.handleResponses))
+	a.mux.HandleFunc("/api/v1/", a.authenticated("openai.proxy", a.handleOpenAIPassthrough))
+	a.mux.HandleFunc("/v1/", a.authenticated("openai.proxy", a.handleOpenAIPassthrough))
 	a.mux.HandleFunc("/api/v1/attestation/status", a.authenticated("models.list", a.handleAttestationStatus))
 	a.mux.HandleFunc("/api/v1/attestation/verify", a.authenticated("models.list", a.handleAttestationVerify))
+	a.mux.HandleFunc("/api/v1/providers", a.authenticated("pricing.manage", a.handleProviders))
+	a.mux.HandleFunc("/api/v1/providers/", a.authenticated("pricing.manage", a.handleProviderByID))
+	a.mux.HandleFunc("/api/v1/rag/collections", a.authenticated("rag", a.handleRAGCollections))
+	a.mux.HandleFunc("/api/v1/rag/collections/", a.authenticated("rag", a.handleRAGCollectionByID))
+	a.mux.HandleFunc("/api/v1/rag/documents/", a.authenticated("rag", a.handleRAGDocumentByID))
+	a.mux.HandleFunc("/api/v1/rag/search", a.authenticated("rag", a.handleRAGSearch))
+	a.mux.HandleFunc("/api/v1/prompt-templates", a.authenticated("chatbot", a.handlePromptTemplates))
+	a.mux.HandleFunc("/api/v1/prompt-templates/", a.authenticated("chatbot", a.handlePromptTemplateByID))
+	a.mux.HandleFunc("/api/v1/chatbots", a.authenticated("chatbot", a.handleChatbots))
+	a.mux.HandleFunc("/api/v1/chatbots/", a.authenticated("chatbot", a.handleChatbotByID))
+	a.mux.HandleFunc("/api/v1/chatbot/external/", a.authenticated("chatbot", a.handleExternalChatbot))
+	a.mux.HandleFunc("/api/v1/connectors/sources", a.authenticated("connectors.manage", a.handleConnectorSources))
+	a.mux.HandleFunc("/api/v1/connectors/sources/", a.authenticated("connectors.manage", a.handleConnectorSourceByID))
+	a.mux.HandleFunc("/api/v1/connectors/sync-jobs", a.authenticated("connectors.manage", a.handleConnectorSyncJobs))
+	a.mux.HandleFunc("/api/v1/connectors/sync-jobs/", a.authenticated("connectors.manage", a.handleConnectorSyncJobByID))
 
 	a.mux.HandleFunc("/api/v1/admin/api-keys", a.authenticated("platform.admin", a.handleAdminAPIKeys))
 	a.mux.HandleFunc("/api/v1/admin/api-keys/", a.authenticated("platform.admin", a.handleAdminAPIKeyByID))
 	a.mux.HandleFunc("/api/v1/admin/usage/summary", a.authenticated("platform.admin", a.handleAdminUsageSummary))
+	a.mux.HandleFunc("/api/v1/admin/pricing", a.authenticated("pricing.manage", a.handleAdminPricing))
+	a.mux.HandleFunc("/api/v1/admin/billing-audit", a.authenticated("platform.admin", a.handleAdminBillingAudit))
 
 	a.registerDashboardRoutes()
+}
+
+func (a *App) handleRoot(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		WriteMethodNotAllowed(w)
+		return
+	}
+	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 }
 
 func recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				log.Printf("panic: %v", recovered)
+				log.Printf("panic: %s", redactForLog(fmt.Sprint(recovered)))
 				WriteOpenAIError(w, http.StatusInternalServerError, "internal server error", "server_error", "internal_error")
 			}
 		}()
@@ -183,13 +265,13 @@ func (a *App) authenticated(scope string, next func(http.ResponseWriter, *http.R
 			}
 		}
 		if len(principal.AllowedIPs) > 0 {
-			if _, ok := principal.AllowedIPs["*"]; !ok {
+			if !sourceIPAllowed(principal.AllowedIPs, "*") {
 				ip := clientIP(r, a.trustProxy)
 				if ip == "" {
 					WriteForbidden(w, "source IP could not be determined")
 					return
 				}
-				if _, ok := principal.AllowedIPs[ip]; !ok {
+				if !sourceIPAllowed(principal.AllowedIPs, ip) {
 					WriteForbidden(w, "source IP is not allowed for this API key")
 					return
 				}
@@ -289,6 +371,9 @@ func (a *App) handleReadyz(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleModels(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
 	if r.Method != http.MethodGet {
+		if a.maybeHandleOpenAIPassthrough(w, r, principal) {
+			return
+		}
 		WriteMethodNotAllowed(w)
 		return
 	}
@@ -313,22 +398,43 @@ func (a *App) handleModels(w http.ResponseWriter, r *http.Request, principal aut
 	WriteJSON(w, http.StatusOK, modelsResp)
 }
 
-func (a *App) handleModelByID(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
-	if r.Method != http.MethodGet {
+func (a *App) handleModelsCacheInvalidate(w http.ResponseWriter, r *http.Request, _ auth.Principal) {
+	if r.Method != http.MethodPost {
 		WriteMethodNotAllowed(w)
 		return
 	}
+	invalidator, ok := a.provider.(llm.ModelCacheInvalidator)
+	if !ok {
+		WriteJSON(w, http.StatusOK, map[string]any{"invalidated": false, "reason": "provider has no model cache"})
+		return
+	}
+	invalidator.InvalidateModelCache()
+	WriteJSON(w, http.StatusOK, map[string]any{"invalidated": true})
+}
+
+func (a *App) handleModelByID(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
 	if a.prober != nil && !a.prober.Ready() {
 		WriteOpenAIError(w, http.StatusServiceUnavailable, "provider not ready", "server_error", "provider_not_ready")
 		return
 	}
-	modelID := strings.TrimPrefix(r.URL.Path, "/api/v1/models/")
+	modelID := modelIDFromPath(r.URL.Path)
 	if strings.TrimSpace(modelID) == "" {
 		WriteOpenAIError(w, http.StatusBadRequest, "model id is required", "invalid_request_error", "missing_model")
 		return
 	}
 	if !auth.ModelAllowed(principal, modelID) {
 		WriteForbidden(w, "model is not allowed for this API key")
+		return
+	}
+	if r.Method == http.MethodDelete {
+		a.handleOpenAIPassthroughWithPrincipal(w, r, principal)
+		return
+	}
+	if r.Method != http.MethodGet {
+		if a.maybeHandleOpenAIPassthrough(w, r, principal) {
+			return
+		}
+		WriteMethodNotAllowed(w)
 		return
 	}
 	model, err := a.provider.GetModel(r.Context(), modelID)
@@ -339,9 +445,18 @@ func (a *App) handleModelByID(w http.ResponseWriter, r *http.Request, principal 
 	WriteJSON(w, http.StatusOK, model)
 }
 
+func modelIDFromPath(path string) string {
+	for _, prefix := range []string{"/api/v1/models/", "/v1/models/"} {
+		if strings.HasPrefix(path, prefix) {
+			return strings.TrimPrefix(path, prefix)
+		}
+	}
+	return ""
+}
+
 func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
 	if r.Method != http.MethodPost {
-		WriteMethodNotAllowed(w)
+		a.handleOpenAIPassthroughWithPrincipal(w, r, principal)
 		return
 	}
 	if a.prober != nil && !a.prober.Ready() {
@@ -375,6 +490,7 @@ func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, prin
 	if chatReq.Stream {
 		stream, err := a.provider.CreateChatCompletionStream(r.Context(), requestBytes)
 		if err != nil {
+			a.recordParsedUsage(r.Context(), principal, "/api/v1/chat/completions", chatReq.Model, usageParsed{Model: chatReq.Model}, statusForProviderError(err))
 			a.WriteProviderError(w, err)
 			return
 		}
@@ -391,19 +507,11 @@ func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, prin
 		flusher, _ := w.(http.Flusher)
 		scanner := bufio.NewScanner(stream)
 		scanner.Buffer(make([]byte, 0, maxSSELineBytes), maxSSELineBytes)
-		usage := usageParsed{}
-		usageSeen := false
+		usage := usageParsed{Model: chatReq.Model}
 		streamStatusCode := http.StatusOK
 		eventData := make([]byte, 0, 256)
 
-		for {
-			if !scanner.Scan() {
-				if err := scanner.Err(); err != nil {
-					streamStatusCode = http.StatusBadGateway
-				}
-				break
-			}
-
+		for scanner.Scan() {
 			line := scanner.Text()
 			if _, writeErr := io.WriteString(w, line); writeErr != nil {
 				streamStatusCode = http.StatusBadGateway
@@ -424,47 +532,35 @@ func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, prin
 					continue
 				}
 				if len(eventData)+len(data)+1 > maxSSEEventBytes {
-					// Prevent unbounded memory usage from pathological SSE payloads.
 					eventData = eventData[:0]
 					continue
 				}
-				if data != "" && len(eventData) > 0 {
+				if len(eventData) > 0 {
 					eventData = append(eventData, '\n')
 				}
 				eventData = append(eventData, []byte(data)...)
 			} else if trimmed == "" && len(eventData) > 0 {
-				parsed := parseUsageFromResponse(eventData)
-				if parsed != (usageParsed{}) {
-					if parsed.Model == "" {
-						parsed.Model = chatReq.Model
-					}
+				if parsed := parseUsageFromResponse(eventData); parsed != (usageParsed{}) {
 					usage = parsed
-					usageSeen = true
 				}
 				eventData = eventData[:0]
 			}
 		}
+		if err := scanner.Err(); err != nil {
+			streamStatusCode = http.StatusBadGateway
+		}
 		if len(eventData) > 0 {
-			parsed := parseUsageFromResponse(eventData)
-			if parsed != (usageParsed{}) {
-				if parsed.Model == "" {
-					parsed.Model = chatReq.Model
-				}
+			if parsed := parseUsageFromResponse(eventData); parsed != (usageParsed{}) {
 				usage = parsed
-				usageSeen = true
 			}
 		}
-
-		if !usageSeen {
+		if usage.Model == "" {
 			usage.Model = chatReq.Model
 		}
 		if a.usageRepo != nil {
-			if usage.TotalTokens == 0 {
-				usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
-			}
 			recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 			defer recordCancel()
-			_ = a.usageRepo.Record(recordCtx, sqlite.UsageRecord{
+			a.RecordUsage(recordCtx, sqlite.UsageRecord{
 				ID:               NewID("usage"),
 				APIKeyID:         principal.APIKeyID,
 				Endpoint:         "/api/v1/chat/completions",
@@ -472,7 +568,6 @@ func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, prin
 				PromptTokens:     usage.PromptTokens,
 				CompletionTokens: usage.CompletionTokens,
 				TotalTokens:      usage.TotalTokens,
-				CostCents:        0,
 				StatusCode:       streamStatusCode,
 			})
 		}
@@ -481,6 +576,7 @@ func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, prin
 
 	resp, err := a.provider.CreateChatCompletion(r.Context(), requestBytes)
 	if err != nil {
+		a.recordParsedUsage(r.Context(), principal, "/api/v1/chat/completions", chatReq.Model, usageParsed{Model: chatReq.Model}, statusForProviderError(err))
 		a.WriteProviderError(w, err)
 		return
 	}
@@ -488,15 +584,14 @@ func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, prin
 		u := parseUsageFromResponse(resp)
 		recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 		defer recordCancel()
-		_ = a.usageRepo.Record(recordCtx, sqlite.UsageRecord{
+		a.RecordUsage(recordCtx, sqlite.UsageRecord{
 			ID:               NewID("usage"),
 			APIKeyID:         principal.APIKeyID,
 			Endpoint:         "/api/v1/chat/completions",
-			Model:            chatReq.Model,
+			Model:            u.Model,
 			PromptTokens:     u.PromptTokens,
 			CompletionTokens: u.CompletionTokens,
 			TotalTokens:      u.TotalTokens,
-			CostCents:        0,
 			StatusCode:       http.StatusOK,
 		})
 	}
@@ -507,6 +602,9 @@ func (a *App) handleChatCompletions(w http.ResponseWriter, r *http.Request, prin
 
 func (a *App) handleEmbeddings(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
 	if r.Method != http.MethodPost {
+		if a.maybeHandleOpenAIPassthrough(w, r, principal) {
+			return
+		}
 		WriteMethodNotAllowed(w)
 		return
 	}
@@ -542,6 +640,7 @@ func (a *App) handleEmbeddings(w http.ResponseWriter, r *http.Request, principal
 
 	resp, err := a.provider.CreateEmbeddings(r.Context(), requestBytes)
 	if err != nil {
+		a.recordParsedUsage(r.Context(), principal, "/api/v1/embeddings", payload.Model, usageParsed{Model: payload.Model}, statusForProviderError(err))
 		a.WriteProviderError(w, err)
 		return
 	}
@@ -552,7 +651,7 @@ func (a *App) handleEmbeddings(w http.ResponseWriter, r *http.Request, principal
 		}
 		recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 		defer recordCancel()
-		_ = a.usageRepo.Record(recordCtx, sqlite.UsageRecord{
+		a.RecordUsage(recordCtx, sqlite.UsageRecord{
 			ID:               NewID("usage"),
 			APIKeyID:         principal.APIKeyID,
 			Endpoint:         "/api/v1/embeddings",
@@ -621,6 +720,6 @@ func (a *App) WriteProviderError(w http.ResponseWriter, err error) {
 		WriteOpenAIError(w, upstreamErr.StatusCode, "upstream provider error", "server_error", "upstream_error")
 		return
 	}
-	log.Printf("upstream provider error: %v", err)
+	log.Printf("upstream provider error: %s", redactForLog(err.Error()))
 	WriteOpenAIError(w, http.StatusBadGateway, "upstream provider unavailable", "server_error", "upstream_unavailable")
 }

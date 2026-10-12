@@ -48,9 +48,9 @@ func (h *Handlers) HandleProcess(w http.ResponseWriter, r *http.Request, princip
 		httpx.WriteOpenAIError(w, http.StatusBadRequest, "invalid multipart form", "invalid_request_error", "invalid_form")
 		return
 	}
-	templateID := strings.TrimSpace(r.FormValue("template_id"))
+	templateID := extractTemplateIDFromRequest(r)
 	if templateID == "" {
-		httpx.WriteOpenAIError(w, http.StatusBadRequest, "template_id is required", "invalid_request_error", "missing_template")
+		httpx.WriteOpenAIError(w, http.StatusBadRequest, "template_id or template is required", "invalid_request_error", "missing_template")
 		return
 	}
 	if !auth.ExtractTemplateAllowed(principal, templateID) {
@@ -97,7 +97,18 @@ func (h *Handlers) HandleProcess(w http.ResponseWriter, r *http.Request, princip
 		Bytes:      content,
 	}, principal.AllowedModels)
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "unsupported") || strings.Contains(strings.ToLower(err.Error()), "template") {
+		lowerErr := strings.ToLower(err.Error())
+		if strings.Contains(lowerErr, "provider chat completion") {
+			h.platform.RecordUsage(r.Context(), sqlite.UsageRecord{
+				ID:         httpx.NewID("usage"),
+				APIKeyID:   principal.APIKeyID,
+				Endpoint:   "/api/v1/extract/process",
+				StatusCode: http.StatusBadGateway,
+			})
+			httpx.WriteOpenAIError(w, http.StatusBadGateway, "provider request failed", "server_error", "provider_error")
+			return
+		}
+		if strings.Contains(lowerErr, "unsupported") || strings.Contains(lowerErr, "template") {
 			httpx.WriteOpenAIError(w, http.StatusUnprocessableEntity, err.Error(), "invalid_request_error", "extract_failed")
 			return
 		}
@@ -116,6 +127,15 @@ func (h *Handlers) HandleProcess(w http.ResponseWriter, r *http.Request, princip
 		StatusCode:       http.StatusOK,
 	})
 	httpx.WriteJSON(w, http.StatusOK, result)
+}
+
+func extractTemplateIDFromRequest(r *http.Request) string {
+	for _, key := range []string{"template_id", "template", "extract_template_id"} {
+		if value := strings.TrimSpace(r.FormValue(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (h *Handlers) HandleJobsList(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
@@ -393,6 +413,9 @@ func mergeTemplate(existing sqlite.ExtractTemplate, patch map[string]any) sqlite
 	}
 	if v, ok := patch["context_schema"].(map[string]any); ok {
 		existing.ContextSchema = v
+	}
+	if v, ok := patch["output_schema"].(map[string]any); ok {
+		existing.OutputSchema = v
 	}
 	return existing
 }

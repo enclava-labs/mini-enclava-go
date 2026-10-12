@@ -13,7 +13,7 @@
           Paste an API key with dashboard scopes to authenticate browser actions.
         </p>
         <form id="api-key-form" class="mt-4 flex flex-col gap-3 sm:flex-row" autocomplete="off">
-          <input id="api-key-input" type="password" required class="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="enc_...">
+          <input id="api-key-input" type="password" required aria-label="API key" class="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
           <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4">
             Use this key
           </button>
@@ -157,16 +157,16 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-2">
                   <label for="tpl-id" class="text-sm font-medium leading-none">Template ID</label>
-                  <input id="tpl-id" type="text" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="my_template">
+                  <input id="tpl-id" type="text" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 </div>
                 <div class="space-y-2">
                   <label for="tpl-name" class="text-sm font-medium leading-none">Name</label>
-                  <input id="tpl-name" type="text" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="My Template">
+                  <input id="tpl-name" type="text" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 </div>
               </div>
               <div class="space-y-2">
                 <label for="tpl-description" class="text-sm font-medium leading-none">Description</label>
-                <input id="tpl-description" type="text" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="Description of what this template extracts">
+                <input id="tpl-description" type="text" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               </div>
               <div class="space-y-2">
                 <label for="tpl-model" class="text-sm font-medium leading-none">Model Override</label>
@@ -176,11 +176,11 @@
               </div>
               <div class="space-y-2">
                 <label for="tpl-system-prompt" class="text-sm font-medium leading-none">System Prompt</label>
-                <textarea id="tpl-system-prompt" rows="4" class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[100px]" placeholder="You are a document extraction assistant..."></textarea>
+                <textarea id="tpl-system-prompt" rows="4" class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[100px]"></textarea>
               </div>
               <div class="space-y-2">
                 <label for="tpl-user-prompt" class="text-sm font-medium leading-none">User Prompt</label>
-                <textarea id="tpl-user-prompt" rows="4" class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[100px]" placeholder="Extract the following fields from this document..."></textarea>
+                <textarea id="tpl-user-prompt" rows="4" class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y min-h-[100px]"></textarea>
               </div>
               <button id="extract-template-form-save" type="button" class="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-6 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
                 Save Template
@@ -240,58 +240,8 @@
 
               <div class="space-y-2">
                 <label class="text-sm font-medium leading-none">Authentication</label>
-                <p class="text-sm text-muted-foreground">All requests require a Bearer token. Include an <code class="text-xs bg-muted px-1 py-0.5 rounded font-mono">Authorization: Bearer &lt;api_key&gt;</code> header with an API key that has the <code class="text-xs bg-muted px-1 py-0.5 rounded font-mono">extract</code> scope.</p>
+                <p class="text-sm text-muted-foreground">All requests require a Bearer token from an API key with the <code class="text-xs bg-muted px-1 py-0.5 rounded font-mono">extract</code> scope.</p>
               </div>
-            </div>
-
-            <!-- curl example -->
-            <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-3">
-              <div class="flex items-center justify-between">
-                <h4 class="text-sm font-semibold">curl</h4>
-                <button class="extract-copy-code inline-flex items-center justify-center rounded-md text-xs font-medium h-7 px-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors" data-target="code-curl">Copy</button>
-              </div>
-              <pre id="code-curl" class="rounded-md bg-muted p-4 text-xs font-mono overflow-x-auto whitespace-pre text-foreground"><code>curl -X POST <span class="extract-api-url-placeholder"></span>/process \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -F "template_id=general_document" \
-  -F "file=@document.pdf"</code></pre>
-            </div>
-
-            <!-- Python example -->
-            <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-3">
-              <div class="flex items-center justify-between">
-                <h4 class="text-sm font-semibold">Python</h4>
-                <button class="extract-copy-code inline-flex items-center justify-center rounded-md text-xs font-medium h-7 px-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors" data-target="code-python">Copy</button>
-              </div>
-              <pre id="code-python" class="rounded-md bg-muted p-4 text-xs font-mono overflow-x-auto whitespace-pre text-foreground"><code>import requests
-
-url = "<span class="extract-api-url-placeholder"></span>/process"
-headers = {"Authorization": "Bearer YOUR_API_KEY"}
-files = {"file": open("document.pdf", "rb")}
-data = {"template_id": "general_document"}
-
-response = requests.post(url, headers=headers, files=files, data=data)
-result = response.json()
-print(result["data"])</code></pre>
-            </div>
-
-            <!-- JavaScript example -->
-            <div class="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-3">
-              <div class="flex items-center justify-between">
-                <h4 class="text-sm font-semibold">JavaScript</h4>
-                <button class="extract-copy-code inline-flex items-center justify-center rounded-md text-xs font-medium h-7 px-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors" data-target="code-js">Copy</button>
-              </div>
-              <pre id="code-js" class="rounded-md bg-muted p-4 text-xs font-mono overflow-x-auto whitespace-pre text-foreground"><code>const form = new FormData();
-form.append("template_id", "general_document");
-form.append("file", fileInput.files[0]);
-
-const response = await fetch("<span class="extract-api-url-placeholder"></span>/process", {
-  method: "POST",
-  headers: { "Authorization": "Bearer YOUR_API_KEY" },
-  body: form,
-});
-
-const result = await response.json();
-console.log(result.data);</code></pre>
             </div>
           </div>
         </div>

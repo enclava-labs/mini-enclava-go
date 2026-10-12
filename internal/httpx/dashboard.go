@@ -44,8 +44,16 @@ var dashboardDefaultScopes = []string{
 	"models.list",
 	"chat.completions",
 	"embeddings.create",
+	"responses",
+	"openai.proxy",
 	"extract",
 	"extract.manage",
+	"rag",
+	"rag.manage",
+	"chatbot",
+	"chatbot.manage",
+	"connectors.manage",
+	"pricing.manage",
 }
 
 type dashboardUsageRow struct {
@@ -143,10 +151,25 @@ func (a *App) registerDashboardRoutes() {
 	a.mux.HandleFunc("/dashboard/partials/extract/process", a.dashboardPartialsAuth(a.handleDashboardExtractProcess))
 	a.mux.HandleFunc("/dashboard/partials/extract/jobs", a.dashboardPartialsAuth(a.handleDashboardExtractJobs))
 	a.mux.HandleFunc("/dashboard/partials/extract/models", a.dashboardPartialsAuth(a.handleDashboardExtractModels))
+	a.mux.HandleFunc("/dashboard/partials/providers", a.dashboardPartialsAuth(a.handleDashboardProviders))
+	a.mux.HandleFunc("/dashboard/partials/pricing", a.dashboardPartialsAuth(a.handleDashboardPricing))
+	a.mux.HandleFunc("/dashboard/partials/billing-audit", a.dashboardPartialsAuth(a.handleDashboardBillingAudit))
+	a.mux.HandleFunc("/dashboard/partials/rag", a.dashboardPartialsAuth(a.handleDashboardRAG))
+	a.mux.HandleFunc("/dashboard/partials/chatbots", a.dashboardPartialsAuth(a.handleDashboardChatbots))
+	a.mux.HandleFunc("/dashboard/partials/prompt-templates", a.dashboardPartialsAuth(a.handleDashboardPromptTemplates))
+	a.mux.HandleFunc("/dashboard/partials/connectors", a.dashboardPartialsAuth(a.handleDashboardConnectors))
+	a.mux.HandleFunc("/dashboard/rag/documents/", a.dashboardPartialsAuth(a.handleDashboardRAGDocumentDownload))
 	a.mux.HandleFunc("/dashboard/extract", a.handleDashboardPageExtract)
 	a.mux.HandleFunc("/dashboard/keys", a.handleDashboardPageKeys)
 	a.mux.HandleFunc("/dashboard/budgets", a.handleDashboardPageBudgets)
 	a.mux.HandleFunc("/dashboard/analytics", a.handleDashboardPageAnalytics)
+	a.mux.HandleFunc("/dashboard/providers", a.handleDashboardPageProviders)
+	a.mux.HandleFunc("/dashboard/pricing", a.handleDashboardPagePricing)
+	a.mux.HandleFunc("/dashboard/billing-audit", a.handleDashboardPageBillingAudit)
+	a.mux.HandleFunc("/dashboard/rag", a.handleDashboardPageRAG)
+	a.mux.HandleFunc("/dashboard/chatbots", a.handleDashboardPageChatbots)
+	a.mux.HandleFunc("/dashboard/prompt-templates", a.handleDashboardPagePromptTemplates)
+	a.mux.HandleFunc("/dashboard/connectors", a.handleDashboardPageConnectors)
 	a.mux.HandleFunc("/dashboard", a.handleDashboardPage)
 	a.mux.HandleFunc("/dashboard/", a.handleDashboardPage)
 }
@@ -802,25 +825,20 @@ func (a *App) handleDashboardBudgets(w http.ResponseWriter, r *http.Request) {
 		if key.BudgetLimitCents == nil {
 			continue
 		}
-		var periodStart time.Time
 		period := key.BudgetPeriod
 		if period == "" {
 			period = "total"
 		}
-		if period == "monthly" {
-			now := time.Now().UTC()
-			periodStart = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-		}
-
-		_, usedCents, err := a.usageRepo.SumSince(r.Context(), key.ID, periodStart)
+		_, usedMicrocents, err := a.usedForPeriod(r.Context(), key.ID, period, nil, time.Now().UTC())
 		if err != nil {
 			log.Printf("failed to load budget usage for key %d: %v", key.ID, err)
 			continue
 		}
 
 		limit := *key.BudgetLimitCents
-		pct := percentInt(usedCents, limit)
-		isOver := usedCents > limit
+		usedCents := microcentsToCents(usedMicrocents)
+		pct := percentInt(usedMicrocents, centsToMicrocents(limit))
+		isOver := usedMicrocents >= centsToMicrocents(limit)
 
 		name := strings.TrimSpace(key.Name)
 		if name == "" {

@@ -105,7 +105,7 @@ func (s *Service) Process(ctx context.Context, apiKeyID int64, input ProcessInpu
 		return ProcessOutput{}, err
 	}
 	promptSystem, promptUser := interpolate(template.SystemPrompt, template.UserPrompt, input.Context)
-	requestPayload := s.buildProviderRequest(model, promptSystem, promptUser, input)
+	requestPayload := s.buildProviderRequest(model, template, promptSystem, promptUser, input)
 	requestBytes, err := json.Marshal(requestPayload)
 	if err != nil {
 		_ = s.jobsRepo.UpdateStatus(ctx, jobID, StatusFailed, model, err.Error(), true)
@@ -221,6 +221,12 @@ func (s *Service) UpsertTemplate(ctx context.Context, t sqlite.ExtractTemplate) 
 	if !isPrimitiveSchema(t.ContextSchema) {
 		return errors.New("context_schema must be a flat object with primitive type definitions")
 	}
+	if t.OutputSchema == nil {
+		t.OutputSchema = map[string]any{}
+	}
+	if len(t.OutputSchema) > 0 && !isObjectSchema(t.OutputSchema) {
+		return errors.New("output_schema must be a JSON object schema")
+	}
 	return s.templatesRepo.Upsert(ctx, t)
 }
 
@@ -309,7 +315,7 @@ func (s *Service) resolveModel(ctx context.Context, t sqlite.ExtractTemplate) (s
 	return "", errors.New("no models available")
 }
 
-func (s *Service) buildProviderRequest(model, systemPrompt, userPrompt string, input ProcessInput) map[string]any {
+func (s *Service) buildProviderRequest(model string, template sqlite.ExtractTemplate, systemPrompt, userPrompt string, input ProcessInput) map[string]any {
 	b64 := base64.StdEncoding.EncodeToString(input.Bytes)
 	dataURL := fmt.Sprintf("data:%s;base64,%s", input.MimeType, b64)
 
@@ -337,13 +343,25 @@ func (s *Service) buildProviderRequest(model, systemPrompt, userPrompt string, i
 		"text": userPrompt,
 	})
 
+	responseFormat := map[string]any{"type": "json_object"}
+	if len(template.OutputSchema) > 0 {
+		responseFormat = map[string]any{
+			"type": "json_schema",
+			"json_schema": map[string]any{
+				"name":   schemaName(template.ID),
+				"schema": template.OutputSchema,
+				"strict": false,
+			},
+		}
+	}
+
 	return map[string]any{
 		"model": model,
 		"messages": []map[string]any{
 			{"role": "system", "content": systemPrompt},
 			{"role": "user", "content": content},
 		},
-		"response_format": map[string]any{"type": "json_object"},
+		"response_format": responseFormat,
 		"temperature":     0,
 	}
 }
@@ -379,6 +397,21 @@ func validateContextValues(ctx map[string]any) error {
 func isPrimitiveSchema(schema map[string]any) bool {
 	for _, v := range schema {
 		if _, ok := v.(map[string]any); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func isObjectSchema(schema map[string]any) bool {
+	if len(schema) == 0 {
+		return true
+	}
+	if typ, ok := schema["type"]; ok && !schemaTypeAllows(typ, "object") {
+		return false
+	}
+	if props, ok := schema["properties"]; ok {
+		if _, ok := props.(map[string]any); !ok {
 			return false
 		}
 	}
@@ -472,6 +505,9 @@ func (s *Service) validateOutput(data map[string]any, template sqlite.ExtractTem
 	if _, hasParseErr := data["_parse_error"]; hasParseErr {
 		errorsList = append(errorsList, "model output is not valid JSON")
 	}
+	if len(template.OutputSchema) > 0 {
+		errorsList = append(errorsList, validateAgainstSchema(data, template.OutputSchema, "$")...)
+	}
 	if template.ID == "detailed_invoice" {
 		if _, ok := data["invoice_number"]; !ok {
 			warnings = append(warnings, "missing invoice_number")
@@ -481,6 +517,202 @@ func (s *Service) validateOutput(data map[string]any, template sqlite.ExtractTem
 		}
 	}
 	return errorsList, warnings
+}
+
+func validateAgainstSchema(value any, schema map[string]any, path string) []string {
+	if len(schema) == 0 {
+		return nil
+	}
+	errorsList := []string{}
+	if enumRaw, ok := schema["enum"].([]any); ok && len(enumRaw) > 0 {
+		matched := false
+		for _, candidate := range enumRaw {
+			if fmt.Sprint(candidate) == fmt.Sprint(value) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			errorsList = append(errorsList, fmt.Sprintf("%s must be one of the declared enum values", path))
+		}
+	}
+	if typ, ok := schema["type"]; ok && !valueMatchesSchemaType(value, typ) {
+		errorsList = append(errorsList, fmt.Sprintf("%s must be %s", path, schemaTypeDescription(typ)))
+		return errorsList
+	}
+	if value == nil && schemaTypeAllows(schema["type"], "null") {
+		return errorsList
+	}
+
+	objectValue, isObj := value.(map[string]any)
+	if isObj || schemaTypeAllows(schema["type"], "object") || schema["properties"] != nil || schema["required"] != nil {
+		if !isObj {
+			errorsList = append(errorsList, fmt.Sprintf("%s must be object", path))
+			return errorsList
+		}
+		for _, field := range schemaStringSlice(schema["required"]) {
+			if _, ok := objectValue[field]; !ok {
+				errorsList = append(errorsList, fmt.Sprintf("%s.%s is required", path, field))
+			}
+		}
+		properties := schemaObjectMap(schema["properties"])
+		for field, fieldSchema := range properties {
+			childValue, ok := objectValue[field]
+			if !ok {
+				continue
+			}
+			childSchema, ok := fieldSchema.(map[string]any)
+			if !ok {
+				continue
+			}
+			errorsList = append(errorsList, validateAgainstSchema(childValue, childSchema, path+"."+field)...)
+		}
+		if additional, ok := schema["additionalProperties"].(bool); ok && !additional && len(properties) > 0 {
+			for field := range objectValue {
+				if _, ok := properties[field]; !ok {
+					errorsList = append(errorsList, fmt.Sprintf("%s.%s is not allowed by output_schema", path, field))
+				}
+			}
+		}
+		return errorsList
+	}
+
+	arrayValue, isArray := value.([]any)
+	if isArray || schemaTypeAllows(schema["type"], "array") {
+		if !isArray {
+			errorsList = append(errorsList, fmt.Sprintf("%s must be array", path))
+			return errorsList
+		}
+		if itemSchema, ok := schema["items"].(map[string]any); ok {
+			for i, item := range arrayValue {
+				errorsList = append(errorsList, validateAgainstSchema(item, itemSchema, fmt.Sprintf("%s[%d]", path, i))...)
+			}
+		}
+	}
+	return errorsList
+}
+
+func valueMatchesSchemaType(value any, typ any) bool {
+	for _, t := range schemaTypeList(typ) {
+		switch t {
+		case "null":
+			if value == nil {
+				return true
+			}
+		case "string":
+			if _, ok := value.(string); ok {
+				return true
+			}
+		case "number":
+			switch value.(type) {
+			case float64, float32, int, int64, int32, uint64, uint32:
+				return true
+			}
+		case "integer":
+			switch v := value.(type) {
+			case float64:
+				return v == float64(int64(v))
+			case int, int64, int32, uint64, uint32:
+				return true
+			}
+		case "boolean":
+			if _, ok := value.(bool); ok {
+				return true
+			}
+		case "object":
+			if _, ok := value.(map[string]any); ok {
+				return true
+			}
+		case "array":
+			if _, ok := value.([]any); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func schemaTypeAllows(typ any, want string) bool {
+	for _, t := range schemaTypeList(typ) {
+		if t == want {
+			return true
+		}
+	}
+	return false
+}
+
+func schemaTypeList(typ any) []string {
+	switch v := typ.(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return nil
+		}
+		return []string{strings.TrimSpace(v)}
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+		return out
+	case []string:
+		return v
+	default:
+		return nil
+	}
+}
+
+func schemaTypeDescription(typ any) string {
+	types := schemaTypeList(typ)
+	if len(types) == 0 {
+		return "declared JSON schema type"
+	}
+	return strings.Join(types, " or ")
+}
+
+func schemaStringSlice(raw any) []string {
+	switch v := raw.(type) {
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+		return out
+	case []string:
+		return v
+	default:
+		return nil
+	}
+}
+
+func schemaObjectMap(raw any) map[string]any {
+	if m, ok := raw.(map[string]any); ok {
+		return m
+	}
+	return map[string]any{}
+}
+
+func schemaName(id string) string {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "extract_output"
+	}
+	var b strings.Builder
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+			continue
+		}
+		b.WriteByte('_')
+	}
+	name := strings.Trim(b.String(), "_-")
+	if name == "" {
+		name = "extract"
+	}
+	return name + "_output"
 }
 
 func toFloat(v any) float64 {

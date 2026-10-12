@@ -1,18 +1,59 @@
 {{define "layout-nav"}}
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-lg border-b border-border">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6">
-      <div class="flex justify-between h-16">
-        <div class="flex items-center gap-6">
-          <a href="/dashboard" class="text-xl font-display font-bold gradient-text">Enclava</a>
-          <div class="hidden sm:flex items-center gap-1">
-            <a href="/dashboard" class="tab-button{{if eq .ActivePage "dashboard"}} active{{end}} px-3 py-2 text-sm font-medium rounded-md">Dashboard</a>
-            <a href="/dashboard/extract" class="tab-button{{if eq .ActivePage "extract"}} active{{end}} px-3 py-2 text-sm font-medium rounded-md">Extract</a>
-            <a href="/dashboard/keys" class="tab-button{{if eq .ActivePage "keys"}} active{{end}} px-3 py-2 text-sm font-medium rounded-md">API Keys</a>
-            <a href="/dashboard/budgets" class="tab-button{{if eq .ActivePage "budgets"}} active{{end}} px-3 py-2 text-sm font-medium rounded-md">Budgets</a>
-            <a href="/dashboard/analytics" class="tab-button{{if eq .ActivePage "analytics"}} active{{end}} px-3 py-2 text-sm font-medium rounded-md">Analytics</a>
-          </div>
+  <nav class="dashboard-nav">
+    <div class="dashboard-nav-shell">
+      <div class="dashboard-nav-left">
+        <a href="/dashboard" class="text-xl font-display font-bold gradient-text">Enclava</a>
+        <div class="dashboard-nav-main" aria-label="Primary">
+          <a href="/dashboard" class="dashboard-nav-link{{if eq .ActivePage "dashboard"}} active{{end}}">Dashboard</a>
+          <a href="/dashboard/extract" class="dashboard-nav-link{{if eq .ActivePage "extract"}} active{{end}}">Extract</a>
+          <a href="/dashboard/rag" class="dashboard-nav-link{{if eq .ActivePage "rag"}} active{{end}}">RAG</a>
+          <a href="/dashboard/chatbots" class="dashboard-nav-link{{if eq .ActivePage "chatbots"}} active{{end}}">Chatbots</a>
+          <a href="/dashboard/connectors" class="dashboard-nav-link{{if eq .ActivePage "connectors"}} active{{end}}">Connectors</a>
+          <details class="dashboard-menu">
+            <summary class="dashboard-nav-link{{if eq .ActivePage "keys"}} active{{end}}{{if eq .ActivePage "budgets"}} active{{end}}" title="API Keys menu">
+              API Keys
+            </summary>
+            <div class="dashboard-menu-panel">
+              <a href="/dashboard/keys" class="dashboard-menu-item{{if eq .ActivePage "keys"}} active{{end}}">Keys</a>
+              <a href="/dashboard/budgets" class="dashboard-menu-item{{if eq .ActivePage "budgets"}} active{{end}}">Budgets</a>
+            </div>
+          </details>
+          <a href="/dashboard/analytics" class="dashboard-nav-link{{if eq .ActivePage "analytics"}} active{{end}}">Analytics</a>
+          <details class="dashboard-menu">
+            <summary class="dashboard-nav-link{{if eq .ActivePage "providers"}} active{{end}}{{if eq .ActivePage "pricing"}} active{{end}}{{if eq .ActivePage "billing-audit"}} active{{end}}{{if eq .ActivePage "prompt-templates"}} active{{end}}" title="Operations menu">
+              Operations
+            </summary>
+            <div class="dashboard-menu-panel">
+              <a href="/dashboard/providers" class="dashboard-menu-item{{if eq .ActivePage "providers"}} active{{end}}">Providers</a>
+              <a href="/dashboard/pricing" class="dashboard-menu-item{{if eq .ActivePage "pricing"}} active{{end}}">Pricing</a>
+              <a href="/dashboard/billing-audit" class="dashboard-menu-item{{if eq .ActivePage "billing-audit"}} active{{end}}">Billing Audit</a>
+              <a href="/dashboard/prompt-templates" class="dashboard-menu-item{{if eq .ActivePage "prompt-templates"}} active{{end}}">Prompt Templates</a>
+            </div>
+          </details>
         </div>
-        <div class="flex items-center gap-3">
+        <details class="dashboard-menu dashboard-mobile-menu">
+          <summary class="dashboard-icon-button" title="Navigation menu" aria-label="Navigation menu">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+          </summary>
+          <div class="dashboard-menu-panel dashboard-menu-panel-wide">
+            <a href="/dashboard" class="dashboard-menu-item{{if eq .ActivePage "dashboard"}} active{{end}}">Dashboard</a>
+            <a href="/dashboard/extract" class="dashboard-menu-item{{if eq .ActivePage "extract"}} active{{end}}">Extract</a>
+            <a href="/dashboard/rag" class="dashboard-menu-item{{if eq .ActivePage "rag"}} active{{end}}">RAG</a>
+            <a href="/dashboard/chatbots" class="dashboard-menu-item{{if eq .ActivePage "chatbots"}} active{{end}}">Chatbots</a>
+            <a href="/dashboard/connectors" class="dashboard-menu-item{{if eq .ActivePage "connectors"}} active{{end}}">Connectors</a>
+            <a href="/dashboard/keys" class="dashboard-menu-item{{if eq .ActivePage "keys"}} active{{end}}">API Keys</a>
+            <a href="/dashboard/budgets" class="dashboard-menu-item{{if eq .ActivePage "budgets"}} active{{end}}">Budgets</a>
+            <a href="/dashboard/analytics" class="dashboard-menu-item{{if eq .ActivePage "analytics"}} active{{end}}">Analytics</a>
+            <a href="/dashboard/providers" class="dashboard-menu-item{{if eq .ActivePage "providers"}} active{{end}}">Providers</a>
+            <a href="/dashboard/pricing" class="dashboard-menu-item{{if eq .ActivePage "pricing"}} active{{end}}">Pricing</a>
+            <a href="/dashboard/billing-audit" class="dashboard-menu-item{{if eq .ActivePage "billing-audit"}} active{{end}}">Billing Audit</a>
+            <a href="/dashboard/prompt-templates" class="dashboard-menu-item{{if eq .ActivePage "prompt-templates"}} active{{end}}">Prompt Templates</a>
+          </div>
+        </details>
+      </div>
+      <div class="dashboard-nav-actions">
           <button onclick="toggleTheme()" class="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Toggle theme">
             <svg class="h-5 w-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
@@ -22,18 +63,33 @@
             </svg>
           </button>
           {{if eq .AuthMode "password"}}
-          <span class="text-sm text-muted-foreground">{{.AdminEmail}}</span>
-          <form method="post" action="/dashboard/logout">
-            <button type="submit" class="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Sign out">
+          <details class="dashboard-menu dashboard-account-menu">
+            <summary class="dashboard-icon-button" title="User menu" aria-label="User menu">
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
-            </button>
-          </form>
+            </summary>
+            <div class="dashboard-menu-panel dashboard-menu-panel-right dashboard-account-panel">
+              <div class="dashboard-menu-header">{{.AdminEmail}}</div>
+              <form method="post" action="/dashboard/logout">
+                <button type="submit" class="dashboard-menu-item dashboard-menu-danger" title="Sign out">
+                  Logout
+                </button>
+              </form>
+            </div>
+          </details>
           {{else}}
-          <span class="text-sm text-muted-foreground">API Key Mode</span>
+          <details class="dashboard-menu dashboard-account-menu">
+            <summary class="dashboard-icon-button" title="User menu" aria-label="User menu">
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+            </summary>
+            <div class="dashboard-menu-panel dashboard-menu-panel-right dashboard-account-panel">
+              <div class="dashboard-menu-header">API Key Mode</div>
+            </div>
+          </details>
           {{end}}
-        </div>
       </div>
     </div>
   </nav>

@@ -164,6 +164,31 @@
 
   // ── Service health ────────────────────────────────────────────────
 
+  function setDot(id, tone) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'status-dot' + (tone ? ' ' + tone : '');
+  }
+
+  function setSeal(state, title, meta) {
+    var band = document.getElementById('seal-band');
+    var titleEl = document.getElementById('seal-title');
+    var metaEl = document.getElementById('seal-meta');
+    if (band) band.setAttribute('data-state', state);
+    if (titleEl) titleEl.textContent = title;
+    if (metaEl) metaEl.innerHTML = meta;
+  }
+
+  function fmtVerifiedAt(iso) {
+    if (!iso || iso.indexOf('0001-01-01') === 0) return null;
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+      ' ' + d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function sep() { return '<span class="sep">·</span>'; }
+
   function refreshServiceStatus() {
     var systemStatus = document.getElementById('system-status');
     var providerStatus = document.getElementById('provider-status');
@@ -174,25 +199,45 @@
         return res.ok ? res.json() : Promise.reject(new Error('health endpoint unavailable'));
       })
       .then(function (payload) {
-        var providerState = payload && payload.provider && typeof payload.provider === 'object'
-          ? payload.provider
-          : null;
-        if (providerState && typeof providerState === 'object') {
-          systemStatus.textContent = providerState.ready
-            ? 'Provider: ready'
-            : 'Provider: not ready';
-          var attInfo = payload.attestation;
-          providerStatus.textContent = attInfo
-            ? 'Attestation: ' + (attInfo.verified ? 'verified' : 'not verified')
-            : 'Attestation: unavailable';
-          return;
+        var providerState = payload && typeof payload.provider === 'object' ? payload.provider : null;
+        var att = payload && typeof payload.attestation === 'object' ? payload.attestation : null;
+        var providerName = (att && att.provider) || (providerState && providerState.name) || 'provider';
+        var ready = !!(providerState && providerState.ready);
+
+        // System snapshot rows
+        systemStatus.textContent = ready ? 'Ready · ' + providerName : 'Not ready · ' + providerName;
+        setDot('provider-dot', ready ? 'ok' : 'warn');
+
+        if (att) {
+          providerStatus.textContent = att.enabled
+            ? (att.verified ? 'Verified' : 'Enabled, not yet verified')
+            : 'Not supported by this provider';
+          setDot('attest-dot', att.enabled ? (att.verified ? 'ok' : 'warn') : '');
+        } else {
+          providerStatus.textContent = 'Unavailable';
+          setDot('attest-dot', '');
         }
-        systemStatus.textContent = 'Service ready';
-        providerStatus.textContent = 'Provider attestation: unavailable';
+
+        // Signature seal band
+        var verifiedAt = att ? fmtVerifiedAt(att.verified_at) : null;
+        var readyTxt = ready ? 'provider live' : 'provider offline';
+        if (att && att.enabled && att.verified) {
+          setSeal('sealed', 'Enclave sealed',
+            'Confidential compute attested' + sep() + providerName +
+            (verifiedAt ? sep() + 'verified ' + verifiedAt : '') + sep() + readyTxt);
+        } else if (att && att.enabled) {
+          setSeal('unsealed', 'Enclave unsealed',
+            'Attestation enabled but not yet verified' + sep() + providerName + sep() + readyTxt);
+        } else {
+          setSeal('off', 'Attestation not active',
+            providerName + ' does not expose a confidential attestation' + sep() + readyTxt);
+        }
       })
       .catch(function () {
-        systemStatus.textContent = 'Could not load /health';
+        systemStatus.textContent = 'Could not reach /health';
+        setDot('provider-dot', 'warn');
         providerStatus.textContent = '';
+        setSeal('off', 'Status unavailable', 'Could not reach the health endpoint.');
       });
   }
 
@@ -259,6 +304,7 @@
     }
     if (path === '/dashboard/partials/stats' && event.detail.successful) {
       initializeEndpointCopy();
+      refreshServiceStatus();
       return;
     }
   }
@@ -289,6 +335,7 @@
   document.body.addEventListener('htmx:afterRequest', onDashboardAfterRequest);
   document.body.addEventListener('htmx:afterSwap', function () {
     initializeEndpointCopy();
+    refreshServiceStatus();
   });
 
   document.addEventListener('DOMContentLoaded', function () {

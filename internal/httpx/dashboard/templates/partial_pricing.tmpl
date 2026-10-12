@@ -1,0 +1,71 @@
+{{define "partial-pricing"}}
+<div class="space-y-6">
+  <div class="rounded-lg border bg-card overflow-hidden">
+    <div class="border-b px-5 py-4">
+      <h3 class="font-semibold">Provider Pricing</h3>
+    </div>
+    {{if not .Pricing}}
+    <div class="p-8 text-center text-sm text-muted-foreground">No provider pricing records.</div>
+    {{else}}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-muted/50 text-muted-foreground">
+          <tr>
+            <th class="px-4 py-3 text-left font-medium">Provider</th>
+            <th class="px-4 py-3 text-left font-medium">Model</th>
+            <th class="px-4 py-3 text-right font-medium">Input / 1K</th>
+            <th class="px-4 py-3 text-right font-medium">Output / 1K</th>
+            <th class="px-4 py-3 text-right font-medium">Embedding / 1K</th>
+            <th class="px-4 py-3 text-left font-medium">Effective</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .Pricing}}
+          <tr>
+            <td class="px-4 py-3">{{.ProviderID}}</td>
+            <td class="px-4 py-3 font-mono">{{.ModelID}}</td>
+            <td class="px-4 py-3 text-right">{{.InputTokenCentsPer1K}} {{.Currency}} cents</td>
+            <td class="px-4 py-3 text-right">{{.OutputTokenCentsPer1K}} {{.Currency}} cents</td>
+            <td class="px-4 py-3 text-right">{{.EmbeddingTokenCentsPer1K}} {{.Currency}} cents</td>
+            <td class="px-4 py-3">{{.EffectiveAt}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+
+  <div class="rounded-lg border bg-card overflow-hidden">
+    <div class="border-b px-5 py-4">
+      <h3 class="font-semibold">Recent Pricing Audit</h3>
+    </div>
+    {{if not .Audit}}
+    <div class="p-8 text-center text-sm text-muted-foreground">No pricing audit events.</div>
+    {{else}}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-muted/50 text-muted-foreground">
+          <tr>
+            <th class="px-4 py-3 text-left font-medium">Action</th>
+            <th class="px-4 py-3 text-left font-medium">Actor</th>
+            <th class="px-4 py-3 text-left font-medium">Pricing ID</th>
+            <th class="px-4 py-3 text-left font-medium">Created</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .Audit}}
+          <tr>
+            <td class="px-4 py-3">{{.Action}}</td>
+            <td class="px-4 py-3">{{.ActorType}} {{.ActorID}}</td>
+            <td class="px-4 py-3">{{with .ProviderPricingID}}{{.}}{{end}}</td>
+            <td class="px-4 py-3">{{.CreatedAt}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

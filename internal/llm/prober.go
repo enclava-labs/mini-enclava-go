@@ -138,6 +138,9 @@ func ProbeProvider(ctx context.Context, provider Provider) error {
 			return err
 		}
 	}
+	if health, ok := provider.(HealthProvider); ok {
+		return health.Health(ctx)
+	}
 	_, err := provider.ListModels(ctx)
 	return err
 }

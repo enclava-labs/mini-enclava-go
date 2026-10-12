@@ -33,3 +33,26 @@ func clientIP(r *http.Request, trustProxy bool) string {
 	}
 	return ""
 }
+
+func sourceIPAllowed(allowed map[string]struct{}, ip string) bool {
+	if _, ok := allowed["*"]; ok {
+		return true
+	}
+	if _, ok := allowed[ip]; ok {
+		return true
+	}
+	parsed := net.ParseIP(strings.TrimSpace(ip))
+	if parsed == nil {
+		return false
+	}
+	for entry := range allowed {
+		entry = strings.TrimSpace(entry)
+		if entry == "" || entry == "*" || entry == ip {
+			continue
+		}
+		if _, network, err := net.ParseCIDR(entry); err == nil && network.Contains(parsed) {
+			return true
+		}
+	}
+	return false
+}

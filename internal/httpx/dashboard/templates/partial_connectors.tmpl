@@ -1,0 +1,139 @@
+{{define "partial-connectors"}}
+<div class="space-y-6">
+  {{if .Success}}<div class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-200">{{.Success}}</div>{{end}}
+  {{if .Error}}<div class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">{{.Error}}</div>{{end}}
+
+  <div class="rounded-lg border bg-card p-5">
+    <form class="grid gap-4 md:grid-cols-6" hx-post="/dashboard/partials/connectors" hx-target="#dashboard-connectors" hx-swap="innerHTML">
+      <input type="hidden" name="action" value="create_source">
+      <label class="space-y-1 text-sm font-medium">
+        <span>Source name</span>
+        <input class="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" name="name" required>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        <span>Source type</span>
+        <select class="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" name="type" required>
+          <option value="github">GitHub</option>
+          <option value="slack">Slack</option>
+          <option value="notion">Notion</option>
+          <option value="linear">Linear</option>
+        </select>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        <span>Target collection</span>
+        <select class="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" name="target_collection_id" required>
+          {{range .Collections}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        <span>Credential reference</span>
+        <input class="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" name="credential_ref">
+      </label>
+      <label class="space-y-1 text-sm font-medium">
+        <span>Source file name</span>
+        <input class="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" name="file_name">
+      </label>
+      <button class="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground" type="submit">Create</button>
+      <label class="space-y-1 text-sm font-medium md:col-span-3">
+        <span>Source content</span>
+        <textarea class="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" name="content"></textarea>
+      </label>
+      <label class="space-y-1 text-sm font-medium md:col-span-3">
+        <span>Connector config JSON</span>
+        <textarea class="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" name="config_json"></textarea>
+      </label>
+    </form>
+  </div>
+
+  <div class="rounded-lg border bg-card overflow-hidden">
+    <div class="border-b px-5 py-4">
+      <h3 class="font-semibold">Connector Sources</h3>
+    </div>
+    {{if not .Sources}}
+    <div class="p-8 text-center text-sm text-muted-foreground">No connector sources.</div>
+    {{else}}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-muted/50 text-muted-foreground">
+          <tr>
+            <th class="px-4 py-3 text-left font-medium">Name</th>
+            <th class="px-4 py-3 text-left font-medium">Type</th>
+            <th class="px-4 py-3 text-left font-medium">Target Collection</th>
+            <th class="px-4 py-3 text-left font-medium">Last Sync</th>
+            <th class="px-4 py-3 text-left font-medium">Status</th>
+            <th class="px-4 py-3 text-left font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .Sources}}
+          <tr>
+            <td class="px-4 py-3">
+              <p class="font-medium">{{.Name}}</p>
+              <p class="text-xs text-muted-foreground font-mono">{{.ID}}</p>
+            </td>
+            <td class="px-4 py-3">{{.Type}}</td>
+            <td class="px-4 py-3 font-mono">{{.TargetCollectionID}}</td>
+            <td class="px-4 py-3">{{with .LastSyncAt}}{{.}}{{else}}Never{{end}}</td>
+            <td class="px-4 py-3">{{if .IsEnabled}}Enabled{{else}}Disabled{{end}}</td>
+            <td class="px-4 py-3">
+              <div class="flex flex-wrap gap-2">
+                <form hx-post="/dashboard/partials/connectors" hx-target="#dashboard-connectors" hx-swap="innerHTML">
+                  <input type="hidden" name="action" value="sync_source">
+                  <input type="hidden" name="source_id" value="{{.ID}}">
+                  <button class="inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium" type="submit">Sync</button>
+                </form>
+                <form hx-post="/dashboard/partials/connectors" hx-target="#dashboard-connectors" hx-swap="innerHTML">
+                  <input type="hidden" name="action" value="set_source_enabled">
+                  <input type="hidden" name="source_id" value="{{.ID}}">
+                  {{if .IsEnabled}}<input type="hidden" name="enabled" value="false"><button class="inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium" type="submit">Disable</button>{{else}}<input type="hidden" name="enabled" value="true"><button class="inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium" type="submit">Enable</button>{{end}}
+                </form>
+                <form hx-post="/dashboard/partials/connectors" hx-target="#dashboard-connectors" hx-swap="innerHTML" hx-confirm="Delete this connector source?">
+                  <input type="hidden" name="action" value="delete_source">
+                  <input type="hidden" name="source_id" value="{{.ID}}">
+                  <button class="inline-flex h-8 items-center justify-center rounded-md border border-red-200 px-3 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/20" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+
+  <div class="rounded-lg border bg-card overflow-hidden">
+    <div class="border-b px-5 py-4">
+      <h3 class="font-semibold">Recent Sync Jobs</h3>
+    </div>
+    {{if not .Jobs}}
+    <div class="p-8 text-center text-sm text-muted-foreground">No connector sync jobs.</div>
+    {{else}}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-muted/50 text-muted-foreground">
+          <tr>
+            <th class="px-4 py-3 text-left font-medium">Job</th>
+            <th class="px-4 py-3 text-left font-medium">Source</th>
+            <th class="px-4 py-3 text-left font-medium">Status</th>
+            <th class="px-4 py-3 text-left font-medium">Error</th>
+            <th class="px-4 py-3 text-left font-medium">Created</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y">
+          {{range .Jobs}}
+          <tr>
+            <td class="px-4 py-3 font-mono">{{.ID}}</td>
+            <td class="px-4 py-3 font-mono">{{.ConnectorSourceID}}</td>
+            <td class="px-4 py-3">{{.Status}}</td>
+            <td class="px-4 py-3">{{.ErrorMessage}}</td>
+            <td class="px-4 py-3">{{.CreatedAt}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

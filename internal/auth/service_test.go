@@ -14,13 +14,14 @@ func (f fakeRepo) FindCandidatesByPrefix(ctx context.Context, prefix string) ([]
 		return nil, err
 	}
 	return []APIKeyRecord{{
-		ID:          1,
-		Name:        "test",
-		KeyHash:     hash,
-		KeyHashAlgo: usedAlgo,
-		KeyPrefix:   "enc_test_",
-		IsActive:    true,
-		Scopes:      []string{"chat.completions"},
+		ID:            1,
+		Name:          "test",
+		KeyHash:       hash,
+		KeyHashAlgo:   usedAlgo,
+		KeyPrefix:     "enc_test_",
+		IsActive:      true,
+		Scopes:        []string{"chat.completions"},
+		AllowedAgents: []string{"agent_allowed"},
 	}}, nil
 }
 
@@ -42,5 +43,11 @@ func TestAuthenticate(t *testing.T) {
 	}
 	if !HasScope(principal, "chat.completions") {
 		t.Fatalf("expected scope")
+	}
+	if !AgentAllowed(principal, "agent_allowed") {
+		t.Fatalf("expected allowed agent")
+	}
+	if AgentAllowed(principal, "agent_blocked") {
+		t.Fatalf("expected blocked agent")
 	}
 }

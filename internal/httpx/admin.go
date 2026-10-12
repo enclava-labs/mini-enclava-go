@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
@@ -22,6 +23,8 @@ type adminAPIKeyCreateRequest struct {
 	AllowedModels           []string `json:"allowed_models,omitempty"`
 	AllowedEndpoints        []string `json:"allowed_endpoints,omitempty"`
 	AllowedExtractTemplates []string `json:"allowed_extract_templates,omitempty"`
+	AllowedChatbots         []string `json:"allowed_chatbots,omitempty"`
+	AllowedAgents           []string `json:"allowed_agents,omitempty"`
 	AllowedIPs              []string `json:"allowed_ips,omitempty"`
 	RateLimitPerMinute      *int     `json:"rate_limit_per_minute,omitempty"`
 	RateLimitPerHour        *int     `json:"rate_limit_per_hour,omitempty"`
@@ -40,7 +43,7 @@ type adminAPIKeyCreateResponse struct {
 	SecretKey string `json:"secret_key"`
 }
 
-func (a *App) handleAdminAPIKeys(w http.ResponseWriter, r *http.Request, _ auth.Principal) {
+func (a *App) handleAdminAPIKeys(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
 	setNoStoreHeaders(w)
 	if a.keysRepo == nil {
 		WriteOpenAIError(w, http.StatusNotImplemented, "admin api key management not configured", "server_error", "not_configured")
@@ -111,6 +114,7 @@ func (a *App) handleAdminAPIKeys(w http.ResponseWriter, r *http.Request, _ auth.
 			WriteOpenAIError(w, http.StatusInternalServerError, "internal server error", "server_error", "api_key_fetch_failed")
 			return
 		}
+		a.recordAPIKeyBillingAudit(r.Context(), "api_key.created", id, principal, adminBudgetMetadata(created))
 		created = redactAdminAPIKey(created)
 		WriteJSON(w, http.StatusCreated, adminAPIKeyCreateResponse{
 			APIKey:    created,
@@ -121,7 +125,7 @@ func (a *App) handleAdminAPIKeys(w http.ResponseWriter, r *http.Request, _ auth.
 	}
 }
 
-func (a *App) handleAdminAPIKeyByID(w http.ResponseWriter, r *http.Request, _ auth.Principal) {
+func (a *App) handleAdminAPIKeyByID(w http.ResponseWriter, r *http.Request, principal auth.Principal) {
 	setNoStoreHeaders(w)
 	if a.keysRepo == nil {
 		WriteOpenAIError(w, http.StatusNotImplemented, "admin api key management not configured", "server_error", "not_configured")
@@ -162,6 +166,7 @@ func (a *App) handleAdminAPIKeyByID(w http.ResponseWriter, r *http.Request, _ au
 			WriteOpenAIError(w, http.StatusInternalServerError, "internal server error", "server_error", "api_key_fetch_failed")
 			return
 		}
+		a.recordAPIKeyBillingAudit(r.Context(), "api_key.secret_regenerated", id, principal, nil)
 		key = redactAdminAPIKey(key)
 		WriteJSON(w, http.StatusOK, adminAPIKeyCreateResponse{APIKey: key, SecretKey: plaintext})
 		return
@@ -183,6 +188,7 @@ func (a *App) handleAdminAPIKeyByID(w http.ResponseWriter, r *http.Request, _ au
 			WriteOpenAIError(w, http.StatusInternalServerError, "internal server error", "server_error", "api_key_delete_failed")
 			return
 		}
+		a.recordAPIKeyBillingAudit(r.Context(), "api_key.deleted", id, principal, nil)
 		WriteJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": id})
 		return
 	}
@@ -203,6 +209,7 @@ func (a *App) handleAdminAPIKeyByID(w http.ResponseWriter, r *http.Request, _ au
 			WriteOpenAIError(w, http.StatusInternalServerError, "internal server error", "server_error", "api_key_restore_failed")
 			return
 		}
+		a.recordAPIKeyBillingAudit(r.Context(), "api_key.restored", id, principal, nil)
 		WriteJSON(w, http.StatusOK, map[string]any{"restored": true, "id": id})
 		return
 	}
@@ -258,6 +265,7 @@ func (a *App) handleAdminAPIKeyByID(w http.ResponseWriter, r *http.Request, _ au
 			WriteOpenAIError(w, http.StatusInternalServerError, "internal server error", "server_error", "api_key_fetch_failed")
 			return
 		}
+		a.recordAPIKeyBillingAudit(r.Context(), "api_key.updated", id, principal, adminBudgetMetadata(updated))
 		WriteJSON(w, http.StatusOK, redactAdminAPIKey(updated))
 	default:
 		WriteMethodNotAllowed(w)
@@ -366,6 +374,8 @@ func sqliteAPIKeyFromAdminRequest(req adminAPIKeyCreateRequest, prefix, hash, us
 		AllowedModels:           req.AllowedModels,
 		AllowedEndpoints:        req.AllowedEndpoints,
 		AllowedExtractTemplates: req.AllowedExtractTemplates,
+		AllowedChatbots:         req.AllowedChatbots,
+		AllowedAgents:           req.AllowedAgents,
 		AllowedIPs:              req.AllowedIPs,
 		RateLimitPerMinute:      req.RateLimitPerMinute,
 		RateLimitPerHour:        req.RateLimitPerHour,
@@ -410,6 +420,12 @@ func applyAdminPatch(k *sqlite.APIKey, req adminAPIKeyCreateRequest) {
 	if req.AllowedExtractTemplates != nil {
 		k.AllowedExtractTemplates = req.AllowedExtractTemplates
 	}
+	if req.AllowedChatbots != nil {
+		k.AllowedChatbots = req.AllowedChatbots
+	}
+	if req.AllowedAgents != nil {
+		k.AllowedAgents = req.AllowedAgents
+	}
 	if req.AllowedIPs != nil {
 		k.AllowedIPs = req.AllowedIPs
 	}
@@ -447,5 +463,39 @@ func applyAdminPatch(k *sqlite.APIKey, req adminAPIKeyCreateRequest) {
 			tt := t.UTC()
 			k.ExpiresAt = &tt
 		}
+	}
+}
+
+func (a *App) recordAPIKeyBillingAudit(ctx context.Context, action string, apiKeyID int64, actor auth.Principal, metadata map[string]any) {
+	if a.billingAuditRepo == nil || apiKeyID <= 0 {
+		return
+	}
+	subjectID := strconv.FormatInt(apiKeyID, 10)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	if err := a.billingAuditRepo.Create(ctx, sqlite.BillingAuditLog{
+		ID:          NewID("billaudit"),
+		APIKeyID:    &apiKeyID,
+		SubjectType: "api_key",
+		SubjectID:   subjectID,
+		Action:      action,
+		ActorType:   "api_key",
+		ActorID:     strconv.FormatInt(actor.APIKeyID, 10),
+		Metadata:    metadata,
+	}); err != nil {
+		log.Printf("failed to write billing audit event %s for api key %d: %v", action, apiKeyID, err)
+	}
+}
+
+func adminBudgetMetadata(k sqlite.APIKey) map[string]any {
+	return map[string]any{
+		"is_unlimited":          k.IsUnlimited,
+		"budget_limit_tokens":   k.BudgetLimitTokens,
+		"budget_limit_cents":    k.BudgetLimitCents,
+		"budget_period":         k.BudgetPeriod,
+		"rate_limit_per_minute": k.RateLimitPerMinute,
+		"rate_limit_per_hour":   k.RateLimitPerHour,
+		"rate_limit_per_day":    k.RateLimitPerDay,
 	}
 }

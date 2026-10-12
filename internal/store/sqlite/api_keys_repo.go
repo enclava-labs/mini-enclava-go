@@ -22,7 +22,7 @@ func (r *APIKeysRepo) FindCandidatesByPrefix(ctx context.Context, prefix string)
 		SELECT
 			id, name, key_prefix, key_hash, key_hash_algo,
 			is_active, expires_at,
-			scopes, allowed_models, allowed_extract_templates, allowed_endpoints,
+			scopes, allowed_models, allowed_extract_templates, allowed_chatbots, allowed_agents, allowed_endpoints,
 			allowed_ips,
 			rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 			is_unlimited, budget_limit_tokens, budget_limit_cents, budget_period
@@ -43,7 +43,7 @@ func (r *APIKeysRepo) FindCandidatesByPrefix(ctx context.Context, prefix string)
 		var isActive int
 		var isUnlimited int
 		var expires sql.NullString
-		var scopesRaw, modelsRaw, templatesRaw, endpointsRaw string
+		var scopesRaw, modelsRaw, templatesRaw, chatbotsRaw, agentsRaw, endpointsRaw string
 		var allowedIPsRaw string
 		var budgetPeriod sql.NullString
 		var budgetTokens sql.NullInt64
@@ -63,6 +63,8 @@ func (r *APIKeysRepo) FindCandidatesByPrefix(ctx context.Context, prefix string)
 			&scopesRaw,
 			&modelsRaw,
 			&templatesRaw,
+			&chatbotsRaw,
+			&agentsRaw,
 			&endpointsRaw,
 			&allowedIPsRaw,
 			&rlMin,
@@ -80,6 +82,8 @@ func (r *APIKeysRepo) FindCandidatesByPrefix(ctx context.Context, prefix string)
 		rec.Scopes = unmarshalStringList(scopesRaw)
 		rec.AllowedModels = unmarshalStringList(modelsRaw)
 		rec.AllowedExtractTemplates = unmarshalStringList(templatesRaw)
+		rec.AllowedChatbots = unmarshalStringList(chatbotsRaw)
+		rec.AllowedAgents = unmarshalStringList(agentsRaw)
 		rec.AllowedEndpoints = unmarshalStringList(endpointsRaw)
 		rec.AllowedIPs = unmarshalStringList(allowedIPsRaw)
 		if rlMin.Valid {
@@ -169,16 +173,24 @@ func (r *APIKeysRepo) EnsureBootstrapKey(ctx context.Context, plaintext, algo, p
 		"models.list",
 		"chat.completions",
 		"embeddings.create",
+		"responses",
+		"openai.proxy",
 		"extract",
 		"extract.manage",
+		"rag",
+		"rag.manage",
+		"chatbot",
+		"chatbot.manage",
+		"connectors.manage",
+		"pricing.manage",
 	}
 	scopesJSON, err := marshalJSON(scopes)
 	if err != nil {
 		return fmt.Errorf("marshal bootstrap scopes: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx, `
-		INSERT INTO api_keys(name, key_prefix, key_hash, key_hash_algo, is_active, expires_at, scopes, allowed_models, allowed_endpoints, allowed_extract_templates)
-		VALUES (?, ?, ?, ?, 1, NULL, ?, '[]', '[]', '[]')
+		INSERT INTO api_keys(name, key_prefix, key_hash, key_hash_algo, is_active, expires_at, scopes, allowed_models, allowed_endpoints, allowed_extract_templates, allowed_chatbots, allowed_agents)
+		VALUES (?, ?, ?, ?, 1, NULL, ?, '[]', '[]', '[]', '[]', '[]')
 	`, "bootstrap", prefix, hash, usedAlgo, scopesJSON)
 	if err != nil {
 		return fmt.Errorf("insert bootstrap key: %w", err)
@@ -196,8 +208,8 @@ func (r *APIKeysRepo) CreateAPIKey(ctx context.Context, name, plaintext, algo, p
 		return 0, fmt.Errorf("marshal scopes: %w", err)
 	}
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO api_keys(name, key_prefix, key_hash, key_hash_algo, is_active, expires_at, scopes, allowed_models, allowed_endpoints, allowed_extract_templates)
-		VALUES (?, ?, ?, ?, 0, NULL, ?, '[]', '[]', '[]')
+		INSERT INTO api_keys(name, key_prefix, key_hash, key_hash_algo, is_active, expires_at, scopes, allowed_models, allowed_endpoints, allowed_extract_templates, allowed_chatbots, allowed_agents)
+		VALUES (?, ?, ?, ?, 0, NULL, ?, '[]', '[]', '[]', '[]', '[]')
 	`, name, prefix, hash, usedAlgo, scopesJSON)
 	if err != nil {
 		return 0, fmt.Errorf("create api key: %w", err)
@@ -216,11 +228,11 @@ func (r *APIKeysRepo) List(ctx context.Context, includeDeleted bool) ([]APIKey, 
 			id, name, description,
 			key_prefix, key_hash, key_hash_algo,
 			is_active, is_deleted, deleted_at, expires_at,
-			scopes, allowed_models, allowed_endpoints, allowed_extract_templates, allowed_ips,
+			scopes, allowed_models, allowed_endpoints, allowed_extract_templates, allowed_chatbots, allowed_agents, allowed_ips,
 			rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 			is_unlimited, budget_limit_tokens, budget_limit_cents, budget_period,
 			tags,
-			total_requests, total_tokens, total_cost_cents, last_used_at,
+			total_requests, total_tokens, total_cost_cents, total_cost_microcents, last_used_at,
 			created_at, updated_at
 		FROM api_keys
 		WHERE %s
@@ -250,11 +262,11 @@ func (r *APIKeysRepo) GetByID(ctx context.Context, id int64) (APIKey, error) {
 			id, name, description,
 			key_prefix, key_hash, key_hash_algo,
 			is_active, is_deleted, deleted_at, expires_at,
-			scopes, allowed_models, allowed_endpoints, allowed_extract_templates, allowed_ips,
+			scopes, allowed_models, allowed_endpoints, allowed_extract_templates, allowed_chatbots, allowed_agents, allowed_ips,
 			rate_limit_per_minute, rate_limit_per_hour, rate_limit_per_day,
 			is_unlimited, budget_limit_tokens, budget_limit_cents, budget_period,
 			tags,
-			total_requests, total_tokens, total_cost_cents, last_used_at,
+			total_requests, total_tokens, total_cost_cents, total_cost_microcents, last_used_at,
 			created_at, updated_at
 		FROM api_keys
 		WHERE id = ?
@@ -279,6 +291,14 @@ func (r *APIKeysRepo) Update(ctx context.Context, k APIKey) error {
 	if err != nil {
 		return fmt.Errorf("marshal allowed_extract_templates: %w", err)
 	}
+	chatbotsJSON, err := marshalJSON(k.AllowedChatbots)
+	if err != nil {
+		return fmt.Errorf("marshal allowed_chatbots: %w", err)
+	}
+	agentsJSON, err := marshalJSON(k.AllowedAgents)
+	if err != nil {
+		return fmt.Errorf("marshal allowed_agents: %w", err)
+	}
 	ipsJSON, err := marshalJSON(k.AllowedIPs)
 	if err != nil {
 		return fmt.Errorf("marshal allowed_ips: %w", err)
@@ -297,6 +317,8 @@ func (r *APIKeysRepo) Update(ctx context.Context, k APIKey) error {
 		    allowed_models = ?,
 		    allowed_endpoints = ?,
 		    allowed_extract_templates = ?,
+		    allowed_chatbots = ?,
+		    allowed_agents = ?,
 		    allowed_ips = ?,
 		    rate_limit_per_minute = ?,
 		    rate_limit_per_hour = ?,
@@ -316,6 +338,8 @@ func (r *APIKeysRepo) Update(ctx context.Context, k APIKey) error {
 		modelsJSON,
 		endpointsJSON,
 		templatesJSON,
+		chatbotsJSON,
+		agentsJSON,
 		ipsJSON,
 		nullableInt(k.RateLimitPerMinute),
 		nullableInt(k.RateLimitPerHour),
@@ -384,10 +408,11 @@ func (r *APIKeysRepo) AddUsage(ctx context.Context, apiKeyID int64, promptTokens
 		UPDATE api_keys
 		SET total_tokens = total_tokens + ?,
 		    total_cost_cents = total_cost_cents + ?,
+		    total_cost_microcents = total_cost_microcents + ?,
 		    updated_at = datetime('now')
 		WHERE id = ?
 		  AND is_deleted = 0
-	`, totalTokens, costCents, apiKeyID)
+	`, totalTokens, costCents, costCents*microcentsPerCent, apiKeyID)
 	if err != nil {
 		return fmt.Errorf("add api key usage: %w", err)
 	}
@@ -422,6 +447,8 @@ func scanAPIKey(s apiKeyScanner) (APIKey, error) {
 		modelsRaw   string
 		endptsRaw   string
 		tplsRaw     string
+		chatbotsRaw string
+		agentsRaw   string
 		ipsRaw      string
 		tagsRaw     string
 		isActive    int
@@ -453,6 +480,8 @@ func scanAPIKey(s apiKeyScanner) (APIKey, error) {
 		&modelsRaw,
 		&endptsRaw,
 		&tplsRaw,
+		&chatbotsRaw,
+		&agentsRaw,
 		&ipsRaw,
 		&rlMin,
 		&rlHour,
@@ -465,6 +494,7 @@ func scanAPIKey(s apiKeyScanner) (APIKey, error) {
 		&k.TotalRequests,
 		&k.TotalTokens,
 		&k.TotalCostCents,
+		&k.TotalCostMicrocents,
 		&lastUsedAt,
 		&createdRaw,
 		&updatedRaw,
@@ -482,6 +512,8 @@ func scanAPIKey(s apiKeyScanner) (APIKey, error) {
 	k.AllowedModels = unmarshalStringList(modelsRaw)
 	k.AllowedEndpoints = unmarshalStringList(endptsRaw)
 	k.AllowedExtractTemplates = unmarshalStringList(tplsRaw)
+	k.AllowedChatbots = unmarshalStringList(chatbotsRaw)
+	k.AllowedAgents = unmarshalStringList(agentsRaw)
 	k.AllowedIPs = unmarshalStringList(ipsRaw)
 	k.Tags = unmarshalStringList(tagsRaw)
 	if rlMin.Valid {

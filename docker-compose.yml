@@ -1,0 +1,43 @@
+services:
+  enclava:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      DATABASE_URL: /data/enclava.db
+      INFERENCE_PROVIDER: ${INFERENCE_PROVIDER:-privatemode}
+      BOOTSTRAP_ENABLED: ${BOOTSTRAP_ENABLED:-false}
+      BOOTSTRAP_API_KEY: ${BOOTSTRAP_API_KEY:-}
+      BOOTSTRAP_API_KEY_MIN_LENGTH: ${BOOTSTRAP_API_KEY_MIN_LENGTH:-48}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      QDRANT_URL: http://qdrant:6333
+      DEFAULT_EMBEDDING_MODEL: ${DEFAULT_EMBEDDING_MODEL:-nomic-embed-text}
+    ports:
+      - "${APP_PORT_HOST:-8080}:8080"
+    volumes:
+      - enclava-data:/data
+    depends_on:
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/livez"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  qdrant:
+    image: qdrant/qdrant:v1.15.5
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+volumes:
+  enclava-data:
+  qdrant-data:

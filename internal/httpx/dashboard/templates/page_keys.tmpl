@@ -13,7 +13,7 @@
           Paste an API key with dashboard scopes to authenticate browser actions.
         </p>
         <form id="api-key-form" class="mt-4 flex flex-col gap-3 sm:flex-row" autocomplete="off">
-          <input id="api-key-input" type="password" required class="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="enc_...">
+          <input id="api-key-input" type="password" required aria-label="API key" class="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
           <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4">
             Use this key
           </button>
@@ -43,8 +43,8 @@
           <div class="flex flex-col space-y-1.5 p-6">
             <div class="flex items-center justify-between">
               <div>
-                <h3 class="text-2xl font-display font-semibold leading-none tracking-tight">API Keys</h3>
-                <p class="text-sm text-muted-foreground mt-1">Manage API keys for external integrations.</p>
+                <h3 class="text-2xl font-display font-semibold leading-none tracking-tight">Key Inventory</h3>
+                <p class="text-sm text-muted-foreground mt-1">Create keys, rotate secrets, and manage access scopes.</p>
               </div>
               <button
                 type="button"
@@ -75,8 +75,7 @@
                     required
                     id="key-name"
                     name="name"
-                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="team-admin"
+                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                 </div>
                 <div class="space-y-2">
@@ -84,8 +83,7 @@
                   <input
                     id="key-description"
                     name="description"
-                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="Used by internal tools"
+                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                 </div>
                 <div class="sm:col-span-2 flex items-center gap-3 justify-end">

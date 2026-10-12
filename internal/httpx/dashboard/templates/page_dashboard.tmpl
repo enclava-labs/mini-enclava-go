@@ -7,13 +7,13 @@
       <div id="dashboard-message" class="min-h-[1.5rem] text-sm"></div>
 
       {{if eq .AuthMode "api_key"}}
-      <section id="api-key-login-panel" class="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+      <section id="api-key-login-panel" class="surface surface-pad">
         <h2 class="text-lg font-display font-semibold">Unlock dashboard</h2>
         <p class="mt-1 text-sm text-muted-foreground">
           Paste an API key with dashboard scopes to authenticate browser actions.
         </p>
         <form id="api-key-form" class="mt-4 flex flex-col gap-3 sm:flex-row" autocomplete="off">
-          <input id="api-key-input" type="password" required class="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" placeholder="enc_...">
+          <input id="api-key-input" type="password" required aria-label="API key" class="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
           <button type="submit" class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4">
             Use this key
           </button>
@@ -33,8 +33,9 @@
           </button>
           {{else}}
           <div>
-            <h1 class="text-3xl font-display font-bold">Dashboard</h1>
-            <p class="text-muted-foreground mt-1">Welcome back, {{.AdminEmail}}</p>
+            <div class="eyebrow">Control plane</div>
+            <h1 class="text-3xl font-display font-bold mt-1">Gateway overview</h1>
+            <p class="text-muted-foreground mt-1">Signed in as {{.AdminEmail}}</p>
           </div>
           {{end}}
         </div>
