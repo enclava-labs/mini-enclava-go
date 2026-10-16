@@ -19,3 +19,5 @@ playwright-report/
 
 # review staging area
 to-delete/
+
+.planning/debug/

@@ -2,7 +2,7 @@ BINARY := enclava
 GOFMT_FILES := $(shell rg --files -g '*.go' -g '!.git/**')
 LINT := golangci-lint
 
-.PHONY: build run test fmt fmt-check vet lint ci dashboard-smoke
+.PHONY: build run test fmt fmt-check vet lint ci dashboard-smoke entrypoint-smoke
 
 build:
 	CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o $(BINARY) ./cmd/enclava
@@ -12,6 +12,7 @@ run:
 
 test:
 	go test ./...
+	./scripts/entrypoint_smoke.sh
 
 fmt:
 	gofmt -w $(GOFMT_FILES)
@@ -37,3 +38,6 @@ ci: fmt-check vet test lint
 
 dashboard-smoke:
 	./scripts/dashboard_smoke.sh
+
+entrypoint-smoke:
+	./scripts/entrypoint_smoke.sh

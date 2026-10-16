@@ -1,8 +1,11 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestLoadTinfoilAllowsDefaultEnclaveAndRepo(t *testing.T) {
+func TestLoadAllowsTinfoilDefaultRouting(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("INFERENCE_PROVIDER", "tinfoil")
 	t.Setenv("TINFOIL_API_KEY", "tf_test_key")
@@ -19,14 +22,32 @@ func TestLoadTinfoilAllowsDefaultEnclaveAndRepo(t *testing.T) {
 	}
 }
 
-func TestLoadTinfoilRequiresEnclaveAndRepoTogether(t *testing.T) {
-	clearConfigEnv(t)
-	t.Setenv("INFERENCE_PROVIDER", "tinfoil")
-	t.Setenv("TINFOIL_API_KEY", "tf_test_key")
-	t.Setenv("TINFOIL_ENCLAVE", "inference.tinfoil.sh")
+func TestLoadRejectsPartialTinfoilRouting(t *testing.T) {
+	tests := []struct {
+		name    string
+		enclave string
+		repo    string
+	}{
+		{name: "enclave only", enclave: "inference.tinfoil.sh"},
+		{name: "repo only", repo: "tinfoilsh/confidential-model-router"},
+	}
 
-	if _, err := Load(); err == nil {
-		t.Fatalf("expected error for half-configured Tinfoil target")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearConfigEnv(t)
+			t.Setenv("INFERENCE_PROVIDER", "tinfoil")
+			t.Setenv("TINFOIL_API_KEY", "tf_test_key")
+			t.Setenv("TINFOIL_ENCLAVE", tt.enclave)
+			t.Setenv("TINFOIL_REPO", tt.repo)
+
+			_, err := Load()
+			if err == nil {
+				t.Fatal("Load() error = nil, want routing error")
+			}
+			if !strings.Contains(err.Error(), "TINFOIL_ENCLAVE and TINFOIL_REPO must be set together") {
+				t.Fatalf("Load() error = %q, want Tinfoil routing error", err)
+			}
+		})
 	}
 }
 
