@@ -43,7 +43,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 4. Crash/retry/cancel and two-process load scenarios preserve durable jobs, exact reservations and bounded active/queued work, including streaming disconnects.
 5. Endpoint/routing/usage screens display actual state and never expose credentials or simulate unimplemented assurance.
 
-**Plans:** 17/36 plans executed
+**Plans:** 18/36 plans executed
 - [x] 01-01-PLAN.md — PostgreSQL store and isolated fixtures
 - [x] 01-02-PLAN.md — Local and verified confidential transports
 - [x] 01-03-PLAN.md — PostgreSQL application configuration
@@ -61,7 +61,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [x] 01-15-PLAN.md — Prompt/assistant persistence and identity cutover
 - [x] 01-16-PLAN.md — HTTP identity boundary and callers
 - [x] 01-17-PLAN.md — Budget/pricing administration and accounting reads
-- [ ] 01-18-PLAN.md — Endpoint administration and stored provider records
+- [x] 01-18-PLAN.md — Endpoint administration and stored provider records
 - [ ] 01-19-PLAN.md — Extraction HTTP/dashboard boundary
 - [ ] 01-20-PLAN.md — Session-authenticated dashboard
 - [ ] 01-21-PLAN.md — Bound credential references
