@@ -66,3 +66,6 @@ verification:
   - "gofmt -l internal/httpx cmd/enclava — clean"
   - "ENCLAVA_TEST_DATABASE_URL go test ./internal/httpx/ -count=1 — pass"
   - "ENCLAVA_TEST_DATABASE_URL go test ./internal/modules/extract/ -count=1 — pass"
+---
+
+Plan 01-18 completed: provider parameter group cut over to postgres EndpointsRepo (see frontmatter for provides/verification details).
