@@ -25,7 +25,10 @@ coverage:
   - deliverable: "Endpoint configuration changes clear stale attestation and UI distinguishes local transport from verified confidentiality."
     verification:
       - kind: test
-        ref: "go test ./internal/httpx -run 'TestEndpoint(UpdateInvalidatesAssuranceOnConfigChanges|CreateRejectsCallerClaimedVerification)$' -count=1"
+        ref: "go test -count=1 ./internal/httpx ./internal/inference"
+        status: pass
+      - kind: test
+        ref: "go build ./... && go test -count=1 $(go list ./... | grep -v '/tests/contract')"
         status: pass
     human_judgment: true
     rationale: "No browser session exercised; endpoint UI and accessibility require live review."
@@ -48,13 +51,15 @@ Implemented tenant-scoped endpoint configuration UI/API updates: credential refe
 
 ## Verification
 
-- PASS: `go test ./internal/httpx -run 'TestEndpoint(UpdateInvalidatesAssuranceOnConfigChanges|CreateRejectsCallerClaimedVerification)$' -count=1` — package compiled and both new focused tests passed.
-- BLOCKED: Required `test -n "$ENCLAVA_TEST_DATABASE_URL" && go test -count=1 ./internal/httpx ./internal/inference` — environment variable is unset; required database-backed verification was not run.
-- Not exercised: browser-level verification against the live composed application and real local/confidential endpoint flows.
+- PASS: `go test ./internal/httpx -run 'TestEndpoint(UpdateInvalidatesAssuranceOnConfigChanges|CreateRejectsCallerClaimedVerification)$' -count=1`.
+- PASS: With the supplied PostgreSQL/Qdrant environment variables exported, `go test ./internal/store/postgres/` passed.
+- PASS: With the supplied environment variables exported, `go test -count=1 ./internal/httpx ./internal/inference` passed.
+- PASS: `go build ./...` and `go test -count=1 $(go list ./... | grep -v '/tests/contract')` passed across the repository.
+- PARTIAL: Browser opened `http://127.0.0.1:18444/dashboard/providers`; the app redirected to `/dashboard/login`. No account email was supplied, so authenticated dashboard/configuration scenarios and actual inference routing were not exercised.
 
 ## Deviations from Plan
 
-**[Rule 3 - Missing prerequisite] Database-backed acceptance verification unavailable** — Found during: verification | `ENCLAVA_TEST_DATABASE_URL` is unset in this worktree environment | Ran the required command guard, which reported the missing variable; focused non-database regression tests passed | No data or files deleted | Full verification remains outstanding.
+**[Rule 3 - Missing prerequisite] Authenticated browser verification unavailable** — Found during: Task 2 verification | The live app redirected to login, and the available setup supplied a password but no login email | Opened the provider URL and observed the login redirect; `psql` lookup could not be performed because the binary is unavailable | No data or files deleted | Authenticated browser verification remains outstanding.
 
 **[Rule 3 - Missing implementation surface] Processing policy controls and end-to-end route proofs remain incomplete** — Found during: Tasks 1–2 | The task requires tenant/input policy mutation controls, actual route execution/denial proofs, alias routing and credential-reference selection; this execution only implemented endpoint creation and status display and did not add those behaviors | Files modified are listed above | Not verified; acceptance criteria are not fully met.
 
