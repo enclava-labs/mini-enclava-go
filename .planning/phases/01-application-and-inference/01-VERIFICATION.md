@@ -1,6 +1,6 @@
 ---
 phase: 01-application-and-inference
-verified: 2026-10-19T18:50:44Z
+verified: 2026-10-19T18:53:12Z
 status: human_needed
 score: 5/5 must-haves verified
 covered_files:
@@ -124,7 +124,7 @@ covered_files:
   - tests/contract/openai_sdk_contract_test.go
   - tests/dashboard.spec.ts
   - tests/proxy_concurrency_test.go
-covered_digest: "v3:sha256:91b3255edb92a063ca2b863bda9a0cb78321e0c668c8c0b3a67072ad46a758f4"
+covered_digest: "v3:sha256:2b72c841636b067df1b7264a77f2d37dc4863497bb4deb08b991ac18c778a768"
 behavior_unverified: 0
 overrides_applied: 0
 human_verification:
@@ -136,7 +136,7 @@ human_verification:
 # Phase 1: Application and inference — Verification Report
 
 **Phase Goal:** A runnable single Go application provides tenant-safe local/OIDC access, durable state/jobs, exact budgets and policy-routed local/confidential OpenAI APIs with bounded resource use and actual administrative screens.
-**Verified:** 2026-10-19T18:50:44Z
+**Verified:** 2026-10-19T18:53:12Z
 **Status:** human_needed
 **Re-verification:** No — initial verification
 
@@ -279,10 +279,10 @@ No implementation gap found in the available codebase and execution evidence. Th
 
 ```yaml
 covered_files: [see exact list in frontmatter]
-covered_digest: "v3:sha256:91b3255edb92a063ca2b863bda9a0cb78321e0c668c8c0b3a67072ad46a758f4"
+covered_digest: "v3:sha256:2b72c841636b067df1b7264a77f2d37dc4863497bb4deb08b991ac18c778a768"
 ```
 
 ---
 
-_Verified: 2026-10-19T18:50:44Z_  
+_Verified: 2026-10-19T18:53:12Z_  
 _Verifier: the agent (gsd-verifier)_
