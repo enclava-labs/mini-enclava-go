@@ -49,7 +49,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [x] 01-03-PLAN.md — PostgreSQL application configuration
 - [x] 01-04-PLAN.md — Shared principals and domain contracts
 - [x] 01-05-PLAN.md — Identity and source schemas
-- [ ] 01-06-PLAN.md — Artifacts, jobs, billing and domain schemas
+- [x] 01-06-PLAN.md — Artifacts, jobs, billing and domain schemas
 - [ ] 01-07-PLAN.md — Durable artifacts and crash reconciliation
 - [ ] 01-08-PLAN.md — Local accounts, keys, sessions and delegation
 - [ ] 01-09-PLAN.md — Source repositories and current authorization
