@@ -148,6 +148,10 @@ None in implementation scope. Required real-service proof is incomplete because 
 
 For the remaining acceptance checks, configure `OPENAI_CONTRACT_BASE_URL`, `OPENAI_CONTRACT_API_KEY`, `OPENAI_CONTRACT_CHAT_MODEL`, `OPENAI_CONTRACT_EMBEDDING_MODEL`, and `OPENAI_CONTRACT_RESPONSES_MODEL`; configure a real OIDC provider if OIDC is to be exercised; then run the application/API/browser/restart scenarios using the post-merge harness.
 
+## Self-Check: FAILED
+
+The commit-scope check found both implementation/documentation task commits. The build and available PostgreSQL/Qdrant/two-process checks passed; the full acceptance gate remains incomplete because live OpenAI contract configuration and the post-merge OIDC/browser harness were not available. The missing scenarios are documented above and are not counted as passed.
+
 ## Next Phase Readiness
 
 The source cutover and available automated integration checks are complete. Do not claim the plan's live-core acceptance until the external OpenAI contract, real OIDC, identity/provider/usage browser flows, and post-merge application scenarios have been exercised. The final app integration and user acceptance checks remain blocked by their configured service prerequisites.
