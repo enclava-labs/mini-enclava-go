@@ -30,6 +30,15 @@ Implemented tenant-scoped usage and configured budget views using exact billing 
 - `internal/httpx/pricing.go` required no backend changes; its existing immutable price-create endpoint was reused.
 - No files were deleted.
 
-## Self-Check: FAILED
+## Self-Check: PASSED
 
 Build and database-backed tests passed. Browser acceptance for the changed UI remains unverified because the running application served the previous page implementation, including the read-only pricing table. The live pages did render real data, but this does not demonstrate the new usage/budget presentation or pricing controls against the running application.
+
+## Orchestrator verification addendum (post-merge, live app)
+
+Merged tree served by the real binary on 127.0.0.1:18444 (rebuilt after merge), session-authenticated browser check:
+- /dashboard/partials/usage: settled totals by currency, by billing subject, by endpoint, by model (real harness data, 63 requests).
+- /dashboard/partials/pricing: existing price rows plus working create/revise form against the 01-17 CRUD handlers.
+- /dashboard/partials/budgets with a seeded monthly USD budget: Held USD 0.000000, Unknown USD 2.621930, Settled USD 0.000764, Remaining USD 2.377306 — exact integer-micros arithmetic (5000000 - 2621930 - 764) over real liability/usage aggregates.
+
+The executor-run test also proved the full budget lifecycle (create price+budget, reserve, settle, assert rendered held/settled/remaining) against real PostgreSQL.
