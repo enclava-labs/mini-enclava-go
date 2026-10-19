@@ -43,7 +43,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 4. Crash/retry/cancel and two-process load scenarios preserve durable jobs, exact reservations and bounded active/queued work, including streaming disconnects.
 5. Endpoint/routing/usage screens display actual state and never expose credentials or simulate unimplemented assurance.
 
-**Plans:** 27/36 plans executed
+**Plans:** 28/36 plans executed
 - [x] 01-01-PLAN.md — PostgreSQL store and isolated fixtures
 - [x] 01-02-PLAN.md — Local and verified confidential transports
 - [x] 01-03-PLAN.md — PostgreSQL application configuration
@@ -71,7 +71,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [x] 01-25-PLAN.md — Extraction through the shared executor
 - [x] 01-26-PLAN.md — Identity and access screens
 - [x] 01-27-PLAN.md — Index/query embeddings through the shared executor
-- [ ] 01-28-PLAN.md — Assistant calls through the shared executor
+- [x] 01-28-PLAN.md — Assistant calls through the shared executor
 - [ ] 01-29-PLAN.md — Explicit public OpenAI core API
 - [ ] 01-30-PLAN.md — Owned Responses API
 - [ ] 01-31-PLAN.md — Bounded concurrency and two-process accounting
