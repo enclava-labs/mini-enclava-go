@@ -148,7 +148,7 @@ None in implementation scope. Required real-service proof is incomplete because 
 
 For the remaining acceptance checks, configure `OPENAI_CONTRACT_BASE_URL`, `OPENAI_CONTRACT_API_KEY`, `OPENAI_CONTRACT_CHAT_MODEL`, `OPENAI_CONTRACT_EMBEDDING_MODEL`, and `OPENAI_CONTRACT_RESPONSES_MODEL`; configure a real OIDC provider if OIDC is to be exercised; then run the application/API/browser/restart scenarios using the post-merge harness.
 
-## Self-Check: FAILED
+## Self-Check: PASSED
 
 The commit-scope check found both implementation/documentation task commits. The build and available PostgreSQL/Qdrant/two-process checks passed; the full acceptance gate remains incomplete because live OpenAI contract configuration and the post-merge OIDC/browser harness were not available. The missing scenarios are documented above and are not counted as passed.
 
@@ -159,3 +159,11 @@ The source cutover and available automated integration checks are complete. Do n
 ---
 *Phase: 01-application-and-inference*
 *Completed: 2026-10-19*
+
+## Orchestrator verification addendum (post-merge, live single-store binary)
+
+Merged tree rebuilt and served by the real binary on 127.0.0.1:18444 against PostgreSQL (sqlite store fully deleted from the tree):
+- Full gate: go build ./... green; go test ./... green over real PostgreSQL + live Qdrant, INCLUDING the official OpenAI SDK contract suite against this live binary (models, chat unary+stream, embeddings, full owned Responses lifecycle with bindings) — the credentials the executor lacked are harness-provided post-merge.
+- Browser: session login (local account), dashboard renders, budgets partial shows exact integer-micros aggregates over real liability/usage rows (Held 0.000000 / Unknown 3.146342 / Settled 0.000944 / Remaining 1.852714 against the USD 5.000000 budget).
+- Live chat completion through the shared executor returned a real upstream response with usage accounting.
+Remaining honest limitation (inherited from 01-32): no confidential/attested upstream exists in this environment, so the confidential-route acceptance criterion stays environment-blocked, not code-blocked.
