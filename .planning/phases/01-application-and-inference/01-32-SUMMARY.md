@@ -2,7 +2,7 @@
 phase: 01-application-and-inference
 plan: "32"
 subsystem: inference administration
- tags: [inference, endpoints, dashboard, assurance]
+tags: [inference, endpoints, dashboard, assurance]
 requires: ["01-31", "01-26"]
 provides: [tenant-endpoint-configuration, endpoint-assurance-status]
 affects: [inference-routing, dashboard-providers]
