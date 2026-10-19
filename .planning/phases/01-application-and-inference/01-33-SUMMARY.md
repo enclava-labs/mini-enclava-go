@@ -9,27 +9,27 @@ completed: 2026-10-19
 
 ## Outcome
 
-Partial implementation only. Removed the hardcoded dashboard allowance and float/cents presentation from the home and usage views. Settled currency totals now remain separated by currency and display integer currency-micros at six decimal places. The budget page reads the authenticated billing subject's `Liabilities` rows, aggregates per currency and preserves raw unit totals with overflow saturation. Pricing rows label exact `rate_micros / unit_quantity`; immutable price writes remain unchanged.
+Implemented tenant-scoped usage and configured budget views using exact billing repository data. Usage displays settled groups by billing subject, endpoint and model, retaining currency grouping and integer currency-micros formatting. Budget views list currently active applicable budgets and show held, unknown and settled liabilities with remaining allowance computed through the same liability accounting used by `EnforceBudget`. Liability rows now carry their state from PostgreSQL. Pricing has a session-compatible form that submits immutable rate revisions through the existing pricing API; it does not rewrite reservation snapshots. Added an integration test that creates a price and budget, reserves, settles and asserts rendered held/settled/remaining values.
 
-## Tasks
+## Commits
 
-- Task 1: Partially completed. Changed dashboard totals to avoid the fictitious default cap and lossy currency rounding; added checked budget-liability aggregation and an overflow helper test. Commit: `bb21e53`.
-- Task 2: Partially completed. Updated usage, budget and pricing labels to avoid claiming cents or settled-only cost for liability. Commit: `bb21e53`.
+- `1d8c77d` fix(01-33): discard unused extract job total
+- `3e11ad5` feat(01-33): render exact usage and budget liabilities
+- `3ccf919` feat(01-33): add immutable pricing controls
+- `9521b75` test(01-33): assert rendered budget liabilities
 
 ## Verification
 
-- NOT RUN: `test -n "$ENCLAVA_TEST_DATABASE_URL" && go test -count=1 ./internal/httpx ./internal/billing` — `ENCLAVA_TEST_DATABASE_URL` is unset in this environment. No database-backed or live/browser acceptance criteria were exercised.
+- PASSED: `go build ./...`.
+- PASSED: `go test -count=1 $(go list ./... | grep -v '/tests/contract')` with the requested PostgreSQL and Qdrant environment variables set; all included packages passed, including `internal/httpx`, `internal/billing` and `internal/store/postgres`.
+- PARTIAL: Browser navigation to `http://127.0.0.1:18444/dashboard/budgets`, `/dashboard/analytics` and `/dashboard/pricing` succeeded in an existing authenticated session and displayed live data. Those pages showed the pre-change UI (for example, the previous budget cards and read-only pricing table), so the browser session did not exercise the newly changed worktree templates or pricing form. No changed-page browser acceptance is claimed.
 
-## Deviations from Plan
+## Deviations
 
-**[Rule 3 - Missing live prerequisite] PostgreSQL verification unavailable** — Found during: Tasks 1–2 | The required PostgreSQL DSN is absent. The mandatory verification commands and actual two-request/cancelled-stream observation could not be exercised. No test is reported as passing.
-
-**[Rule 3 - Missing repository contract] Budget administration and per-state liability views unavailable through current HTTP repository API** — Found during: Tasks 1–2 | `BillingRepo` has concrete `Liabilities` and `ListActiveBudgets` methods, but the public `BillingRepository` contract does not expose these reads; it also has no budget listing or reservation-state enumeration method. `LiabilityRow` contains amounts/currencies/units but no state, so the dashboard cannot truthfully distinguish settled, held and unknown rows or calculate configured remaining allowance for each subject. The actual pricing API remains immutable and tenant authenticated, but the existing pricing partial is read-only. Adding ad-hoc SQL or fabricated controls would violate the single-authority/no-fakes contract. These acceptance criteria remain incomplete.
-
-**[Rule 3 - Missing browser/upstream prerequisites] Live UI acceptance unavailable** — Found during: Task 2 | No running application/provider configuration was supplied for observing concurrent requests, stream cancellation, changed-rate effects, keyboard behavior or browser totals against service responses. No smoke result is claimed.
-
-No files were deleted.
-
-**Total deviations:** 3 blockers. **Impact:** Source changes improve exact presentation and remove the fake allowance, but the plan is not complete: state-specific reservations, real configured budget views/edits, browser acceptance and PostgreSQL tests remain unverified/unimplemented.
+- Additional necessary files beyond the declared plan list: `internal/billing/repository.go` and `internal/store/postgres/billing_repo.go` add the liability state needed to distinguish held, unknown and settled amounts; `internal/httpx/dashboard/static/pricing.js` submits form edits to the existing API.
+- `internal/httpx/pricing.go` required no backend changes; its existing immutable price-create endpoint was reused.
+- No files were deleted.
 
 ## Self-Check: FAILED
+
+Build and database-backed tests passed. Browser acceptance for the changed UI remains unverified because the running application served the previous page implementation, including the read-only pricing table. The live pages did render real data, but this does not demonstrate the new usage/budget presentation or pricing controls against the running application.
