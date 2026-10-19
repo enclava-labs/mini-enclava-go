@@ -62,7 +62,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [x] 01-16-PLAN.md — HTTP identity boundary and callers
 - [x] 01-17-PLAN.md — Budget/pricing administration and accounting reads
 - [x] 01-18-PLAN.md — Endpoint administration and stored provider records
-- [ ] 01-19-PLAN.md — Extraction HTTP/dashboard boundary
+- [x] 01-19-PLAN.md — Extraction HTTP/dashboard boundary
 - [ ] 01-20-PLAN.md — Session-authenticated dashboard
 - [ ] 01-21-PLAN.md — Bound credential references
 - [ ] 01-22-PLAN.md — Fresh bootstrap and core composition
