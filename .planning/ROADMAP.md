@@ -32,6 +32,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 ## Phase Details
 
 ### Phase 1: Application and inference
+
 **Goal:** A runnable single Go application provides tenant-safe local/OIDC access, durable state/jobs, exact budgets and policy-routed local/confidential OpenAI APIs with bounded resource use and actual administrative screens.
 **Depends on:** Nothing
 **Requirements:** CORE-01, CORE-02, CORE-03, CORE-04, CORE-05, AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, JOB-01, JOB-02, JOB-03, JOB-04, INF-01, INF-02, INF-03, INF-04, INF-05, INF-06, CON-01, CON-02, UI-01, UI-02
@@ -42,10 +43,10 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 4. Crash/retry/cancel and two-process load scenarios preserve durable jobs, exact reservations and bounded active/queued work, including streaming disconnects.
 5. Endpoint/routing/usage screens display actual state and never expose credentials or simulate unimplemented assurance.
 
-**Plans:** 36 plans
-- [ ] 01-01-PLAN.md — PostgreSQL store and isolated fixtures
-- [ ] 01-02-PLAN.md — Local and verified confidential transports
-- [ ] 01-03-PLAN.md — PostgreSQL application configuration
+**Plans:** 3/36 plans executed
+- [x] 01-01-PLAN.md — PostgreSQL store and isolated fixtures
+- [x] 01-02-PLAN.md — Local and verified confidential transports
+- [x] 01-03-PLAN.md — PostgreSQL application configuration
 - [ ] 01-04-PLAN.md — Shared principals and domain contracts
 - [ ] 01-05-PLAN.md — Identity and source schemas
 - [ ] 01-06-PLAN.md — Artifacts, jobs, billing and domain schemas
@@ -81,6 +82,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [ ] 01-36-PLAN.md — Finish single-store composition and prove the core
 
 ### Phase 2: Structured document processing
+
 **Goal:** Real documents become immutable ordered evidence blocks and controlled chunks, with native processor isolation and a preview identical to downstream processing.
 **Depends on:** Phase 1
 **Requirements:** DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06
@@ -98,6 +100,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [ ] 02-05-PLAN.md — Make document structure and chunk controls reviewable in the browser
 
 ### Phase 3: Standalone extraction and vision
+
 **Goal:** A company can submit a narrow extraction or image-recognition task and retrieve an authorized durable result without deploying search or connectors.
 **Depends on:** Phase 1, Phase 2
 **Requirements:** PROC-01, PROC-02, PROC-03, PROC-04, PROC-05
@@ -113,6 +116,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [ ] 03-03-PLAN.md — Deliver standalone processing screens and the current API reference
 
 ### Phase 4: Connected knowledge and search
+
 **Goal:** Slack, Teams, GitHub, Notion and Google Drive feed a permission-aware, source-linked hybrid search product with controlled structured ingestion.
 **Depends on:** Phase 1, Phase 2 (not Phase 3)
 **Requirements:** SRC-01, SRC-02, SRC-03, SRC-04, SRC-05, SRC-06, SRC-07, IDX-01, IDX-02, IDX-03, SEARCH-01, SEARCH-02, SEARCH-03, SEARCH-04, SEARCH-05, SEARCH-06
@@ -136,6 +140,7 @@ Within a phase, use the plans' `depends_on` and `wave` fields. Concurrent plans 
 - [ ] 04-10-PLAN.md — Actual knowledge composition and live corpus/browser proof
 
 ### Phase 5: Agents and approved tools
+
 **Goal:** Employees and service identities use durable assistants with company knowledge, processing jobs and approved MCP tools without a second authorization/execution path.
 **Depends on:** Phase 1, Phase 3, Phase 4
 **Requirements:** AGENT-01, AGENT-02, AGENT-03, AGENT-04, AGENT-05
